@@ -14,7 +14,7 @@ try { setPriority(0, 10); } catch { /* Priority is best-effort on hosts without 
 const collector = new Collector(roots);
 collector.on('warning', warning => console.warn('[collector]', warning));
 await collector.start();
-const server = createDashboardServer(collector);
+const server = createDashboardServer(collector, { preferencesFile: join(homedir(), 'Library', 'Application Support', 'Agent Ops', 'preferences.json') });
 const port = Number(process.env.PORT || 4318);
 server.listen(port, '127.0.0.1', () => console.log(`Agent Ops running at http://127.0.0.1:${port} · ${collector.files.size} local logs · read-only`));
 server.on('error', error => { console.error(error.message); collector.close(); process.exitCode = 1; });

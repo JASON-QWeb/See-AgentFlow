@@ -278,3 +278,14 @@ dialog::backdrop { background: #030908c9; backdrop-filter: blur(4px); }
   .resource-grid { grid-template-columns: 1fr 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* Shared panorama geometry must not change at each physical monitor's media-query breakpoint. */
+.dashboard[data-panorama] { padding: 0 14px; gap: 6px; }
+.dashboard[data-panorama] .observatory { margin: 0 -14px; }
+.dashboard[data-panorama] .panel-grid { grid-template-columns: 1.03fr 1.05fr 1.05fr 1fr; grid-template-rows: 1fr; }
+.dashboard[data-panorama] .orchestration-panel { display: flex; }
+
+/* Compact mode is exclusive to the floating desktop window. */
+.dashboard[data-desktop] { min-height: 0; }
+.dashboard[data-desktop] .top-controls { right: calc(24px + var(--window-controls-space, 88px)); }
+.dashboard[data-desktop][data-compact] { height: 100dvh; grid-template-rows: minmax(0, 1fr) 28px; overflow: hidden; }

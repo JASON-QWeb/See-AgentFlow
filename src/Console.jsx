@@ -42,16 +42,16 @@ export function Console({ open, onClose, events, data, initialEvent, initialSess
   const session = sessionOptions.find(session => session.id === (selected?.sessionId || sessionId));
   const copy = async () => {
     try { await navigator.clipboard.writeText(raw ? detail.raw : detail.text); setCopied(true); setTimeout(() => setCopied(false), 1800); }
-    catch { setError('复制失败，请直接选择文本复制。'); }
+    catch { setError('Copy failed. Select the text and copy it directly.'); }
   };
   return <dialog ref={dialog} className="console-dialog" onCancel={onClose} onClick={event => { if (event.target === dialog.current) onClose(); }}>
     <div className="console-shell">
-      <header className="dialog-heading"><div><span className="eyebrow">LOCAL / READ ONLY</span><h2>EVENT CONSOLE <span>事件控制台</span></h2></div><button className="icon-button" onClick={onClose} aria-label="关闭控制台"><X size={20} /></button></header>
+      <header className="dialog-heading"><div><span className="eyebrow">LOCAL / READ ONLY</span><h2>EVENT CONSOLE </h2></div><button className="icon-button" onClick={onClose} aria-label="Close event console"><X size={20} /></button></header>
       <div className="console-toolbar">
-        <label className="search"><MagnifyingGlass size={15} /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索最近事件…" aria-label="搜索事件" /></label>
-        <select aria-label="筛选来源" value={provider} onChange={event => setProvider(event.target.value)}><option value="all">ALL SOURCES</option><option value="codex">CODEX</option><option value="claude">CLAUDE</option></select>
-        <select aria-label="筛选类型" value={kind} onChange={event => setKind(event.target.value)}><option value="all">ALL EVENTS</option>{Object.entries(labels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
-        <select aria-label="筛选会话" value={sessionId} onChange={event => setSessionId(event.target.value)}><option value="all">ALL SESSIONS</option>{sessionOptions.map(session => <option key={session.id} value={session.id}>{session.provider} / {session.title} / {session.shortId}</option>)}</select>
+        <label className="search"><MagnifyingGlass size={15} /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search recent events…" aria-label="Search events" /></label>
+        <select aria-label="Filter source" value={provider} onChange={event => setProvider(event.target.value)}><option value="all">ALL SOURCES</option><option value="codex">CODEX</option><option value="claude">CLAUDE</option></select>
+        <select aria-label="Filter event type" value={kind} onChange={event => setKind(event.target.value)}><option value="all">ALL EVENTS</option>{Object.entries(labels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
+        <select aria-label="Filter session" value={sessionId} onChange={event => setSessionId(event.target.value)}><option value="all">ALL SESSIONS</option>{sessionOptions.map(session => <option key={session.id} value={session.id}>{session.provider} / {session.title} / {session.shortId}</option>)}</select>
       </div>
       <div className="console-body">
         <div className="console-events"><div className="list-heading">{filtered.length} RECORDS <span>RECENT BUFFER</span></div>
@@ -60,16 +60,16 @@ export function Console({ open, onClose, events, data, initialEvent, initialSess
             <p>{event.tool ? `${event.tool} · ` : ''}{event.preview.slice(0, 180) || '(empty record)'}</p>
             <small>{event.historical ? 'HISTORY' : 'CAPTURED LIVE'} / {bytes(event.bytes)}</small>
           </button>)}
-          {!filtered.length && <p className="empty">没有匹配的记录。新事件会自动显示。</p>}
+          {!filtered.length && <p className="empty">No matching records. New events appear automatically.</p>}
         </div>
         <div className="console-detail">
           {selected ? <>
-            <div className="detail-heading"><div><b>{selected.tool || labels[selected.kind]}</b><span>{session?.title || selected.sessionId}</span></div><div className="detail-actions"><button onClick={() => setRaw(!raw)} disabled={!detail}>{raw ? 'TEXT' : 'RAW JSON'}</button><button onClick={copy} disabled={!detail} aria-label="复制完整内容">{copied ? <Check size={16} /> : <Copy size={16} />}</button><a href={`/api/session/${selected.sessionId}/raw`} title="下载完整原始会话日志" aria-label="下载完整会话日志"><ArrowDown size={16} /></a></div></div>
-            {error ? <p className="error">{error}</p> : detail ? <><pre className="full-content">{raw ? detail.raw : detail.text}</pre>{detail.truncated && <p className="warning">记录超过 8 MB。请下载原始会话日志查看完整内容。</p>}</> : <p className="empty">正在读取原始记录…</p>}
-          </> : <div className="detail-empty"><span>SELECT A RECORD</span><h3>每一次输入，每一次回应。</h3><p>选择左侧事件查看完整内容与原始 JSON。<br />下载按钮可保存该会话的全部原始日志。</p>{sessionId !== 'all' && <a className="text-button" href={`/api/session/${sessionId}/raw`}>下载此会话完整日志 <ArrowDown /></a>}</div>}
+            <div className="detail-heading"><div><b>{selected.tool || labels[selected.kind]}</b><span>{session?.title || selected.sessionId}</span></div><div className="detail-actions"><button onClick={() => setRaw(!raw)} disabled={!detail}>{raw ? 'TEXT' : 'RAW JSON'}</button><button onClick={copy} disabled={!detail} aria-label="Copy full content">{copied ? <Check size={16} /> : <Copy size={16} />}</button><a href={`/api/session/${selected.sessionId}/raw`} title="Download complete original session log" aria-label="Download complete session log"><ArrowDown size={16} /></a></div></div>
+            {error ? <p className="error">{error}</p> : detail ? <><pre className="full-content">{raw ? detail.raw : detail.text}</pre>{detail.truncated && <p className="warning">Record exceeds 8 MB. Download the original session log for the full content.</p>}</> : <p className="empty">Reading the original record…</p>}
+          </> : <div className="detail-empty"><span>SELECT A RECORD</span><h3>Every input. Every response.</h3><p>Select an event to inspect its full content and raw JSON.<br />Download the complete original log for this session.</p>{sessionId !== 'all' && <a className="text-button" href={`/api/session/${sessionId}/raw`}>Download session log <ArrowDown /></a>}</div>}
         </div>
       </div>
-      <footer className="console-footer">仅在本机读取 · 搜索范围为最近缓存中的文本预览 · 完整历史请下载原始会话日志 <span>ESC TO CLOSE</span></footer>
+      <footer className="console-footer">LOCAL ONLY · SEARCH CACHED PREVIEWS · DOWNLOAD ORIGINAL LOGS FOR FULL HISTORY <span>ESC TO CLOSE</span></footer>
     </div>
   </dialog>;
 }

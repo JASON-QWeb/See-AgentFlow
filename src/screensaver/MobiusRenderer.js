@@ -1,0 +1,193 @@
+import { program, ringVertex, ringFragment, lineVertex, lineFragment, packetVertex } from './mobiusShaders.js';
+import { packetMesh, routeMesh, ringMesh } from './mobiusGeometry.js';
+import { themeFor, rgb, hexRGB } from '../themes.js';
+import { innerMeshes, innerVertex, INNER_PACKETS, OUTER_PACKETS } from './innerFlow.js';
+
+export class MobiusRenderer {
+  constructor(canvas, telemetry, layout) {
+    this.canvas = canvas; this.telemetry = telemetry; this.layout = layout;
+    this.palette = themeFor(telemetry.current.theme);
+    this.gl = canvas.getContext('webgl2', { alpha: false, antialias: true, powerPreference: 'low-power' });
+    if (!this.gl) throw new Error('The dual-display ribbon requires WebGL 2');
+    this.textCanvas = document.createElement('canvas');
+    this.textCanvas.width = 3072; this.textCanvas.height = 384;
+    this.reduced = matchMedia('(prefers-reduced-motion: reduce)');
+    this.frameCount = 0; this.sampleAt = performance.now(); this.atlasAt = 0;
+    this.onVisibility = () => {
+      cancelAnimationFrame(this.raf); this.nextFrame = null; this.sampleAt = performance.now(); this.frameCount = 0;
+      if (!document.hidden) this.animate();
+    };
+    this.onLost = event => { event.preventDefault(); cancelAnimationFrame(this.raf); };
+    this.onRestored = () => { this.initialize(); this.animate(); };
+    document.addEventListener('visibilitychange', this.onVisibility);
+    canvas.addEventListener('webglcontextlost', this.onLost);
+    canvas.addEventListener('webglcontextrestored', this.onRestored);
+    this.initialize(); this.animate();
+    document.fonts.ready.then(() => { this.atlasAt = 0; this.atlasRevision = null; });
+  }
+
+  initialize() {
+    const gl = this.gl, { width, height, y, sceneHeight } = this.layout;
+    const visibleHeight = Math.max(1, Math.min(height, sceneHeight - y));
+    const scale = Math.min(devicePixelRatio || 1, Math.sqrt(8294400 / (width * visibleHeight)));
+    this.canvas.width = Math.round(width * scale); this.canvas.height = Math.round(visibleHeight * scale);
+    this.view = [this.layout.x, y, width, visibleHeight];
+    this.ring = program(gl, ringVertex, ringFragment); this.line = program(gl, lineVertex, lineFragment);
+    this.packetProgram = program(gl, packetVertex, lineFragment);
+    this.innerProgram = program(gl, innerVertex, lineFragment);
+    const mesh = ringMesh(); this.meshCount = mesh.length / 2;
+    this.mesh = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, this.mesh); gl.bufferData(gl.ARRAY_BUFFER, mesh, gl.STATIC_DRAW);
+    this.packetBuffer = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, this.packetBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, packetMesh(), gl.STATIC_DRAW);
+    const inner = innerMeshes(); this.innerRouteCount = inner.routes.length / 7;
+    this.innerRoutes = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, this.innerRoutes);
+    gl.bufferData(gl.ARRAY_BUFFER, inner.routes, gl.STATIC_DRAW);
+    this.innerPackets = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, this.innerPackets);
+    gl.bufferData(gl.ARRAY_BUFFER, inner.packets, gl.STATIC_DRAW);
+    this.texture = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, this.texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.clearColor(...hexRGB(this.palette.background), 1); gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    this.buildRoutes(); this.updateAtlas(Date.now());
+  }
+
+  buildRoutes() {
+    const vertices = routeMesh(this.layout.worldWidth, this.layout.sceneHeight, this.palette);
+    this.routeCount = vertices.length / 6;
+    if (this.routes) this.gl.deleteBuffer(this.routes);
+    this.routes = this.gl.createBuffer(); this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.routes);
+    this.gl.bufferData(this.gl.ARRAY_BUFFER, vertices, this.gl.STATIC_DRAW);
+  }
+
+  updateTheme() {
+    const palette = themeFor(this.telemetry.current.theme);
+    if (palette.id === this.palette.id) return;
+    this.palette = palette; this.atlasRevision = null; this.atlasAt = 0;
+    this.gl.clearColor(...hexRGB(palette.background), 1); this.buildRoutes();
+  }
+
+  setPalette(program) {
+    const gl = this.gl;
+    gl.uniform3fv(gl.getUniformLocation(program, 'u_accent'), rgb(this.palette.accent));
+    gl.uniform3fv(gl.getUniformLocation(program, 'u_ink'), rgb(this.palette.ink));
+  }
+
+  updateAtlas(now) {
+    const state = this.telemetry.current;
+    const events = state.immersive ? state.replayEvents || [] : state.events || [];
+    const revision = `${state.replayRevision}:${events.length}:${Math.floor(now / 12000)}`;
+    if (revision === this.atlasRevision) return;
+    const page = Math.floor(now / 12000);
+    if (this.atlasAt && now - this.atlasAt < 2500 && page === this.atlasPage) return;
+    this.atlasAt = now; this.atlasPage = page;
+    this.atlasRevision = revision;
+    const c = this.textCanvas.getContext('2d');
+    c.fillStyle = this.palette.surface; c.fillRect(0, 0, 3072, 384);
+    c.font = '500 17px "IBM Plex Mono", monospace'; c.textBaseline = 'top';
+    for (let column = 0; column < 6; column++) for (let block = 0; block < 4; block++) {
+      const event = events[(page * 17 + column * 4 + block) % events.length];
+      const content = (event?.preview || event?.text || 'WAITING FOR LOCAL LOGS').replace(/\s+/g, ' ');
+      const hex = Array.from(new TextEncoder().encode(content.slice(0, 80)), byte => byte.toString(16).padStart(2, '0')).join(' ');
+      for (let row = 0; row < 5; row++) {
+        c.fillStyle = row === 0 ? `rgb(${this.palette.accent})` : row % 3 ? `rgb(${this.palette.ink})` : this.palette.muted;
+        const text = row === 0 ? `${event?.provider?.toUpperCase() || 'LOCAL'} / ${event?.kind || 'REPLAY'}` :
+          column % 3 === 2 ? hex.slice((row - 1) * 44, row * 44) : content.slice((row - 1) * 44, row * 44);
+        c.fillText(text, column * 512 + 10, block * 96 + row * 17 + 9, 484);
+      }
+    }
+    const gl = this.gl; gl.bindTexture(gl.TEXTURE_2D, this.texture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.textCanvas);
+  }
+
+  drawLines(buffer, count) {
+    const gl = this.gl; gl.useProgram(this.line); gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.uniform4fv(gl.getUniformLocation(this.line, 'u_view'), this.view);
+    for (const [name, size, offset] of [['a_position', 2, 0], ['a_color', 4, 8]]) {
+      const location = gl.getAttribLocation(this.line, name);
+      gl.enableVertexAttribArray(location); gl.vertexAttribPointer(location, size, gl.FLOAT, false, 24, offset);
+    }
+    gl.drawArrays(gl.TRIANGLES, 0, count);
+  }
+
+  drawPackets(now) {
+    const state = this.telemetry.current;
+    const count = state.immersive ? OUTER_PACKETS : Math.floor(Math.min(OUTER_PACKETS, 100 + (state.data?.rate || 0) * 40));
+    const gl = this.gl; gl.useProgram(this.packetProgram); gl.bindBuffer(gl.ARRAY_BUFFER, this.packetBuffer);
+    gl.uniform4fv(gl.getUniformLocation(this.packetProgram, 'u_view'), this.view);
+    gl.uniform2f(gl.getUniformLocation(this.packetProgram, 'u_world'), this.layout.worldWidth, this.layout.sceneHeight);
+    gl.uniform1f(gl.getUniformLocation(this.packetProgram, 'u_phase'), (now % 120000) / 120000);
+    for (const [name, size, offset] of [['a_packet', 4, 0], ['a_tail', 3, 16]]) {
+      const location = gl.getAttribLocation(this.packetProgram, name);
+      gl.enableVertexAttribArray(location); gl.vertexAttribPointer(location, size, gl.FLOAT, false, 28, offset);
+    }
+    this.setPalette(this.packetProgram);
+    gl.drawArrays(gl.TRIANGLES, 0, count * 18);
+  }
+
+  drawInner(now, packets) {
+    const gl = this.gl, shader = this.innerProgram, state = this.telemetry.current;
+    const count = state.immersive ? INNER_PACKETS : Math.min(INNER_PACKETS, Math.floor((state.data?.rate || 0) * 20));
+    gl.useProgram(shader); gl.bindBuffer(gl.ARRAY_BUFFER, packets ? this.innerPackets : this.innerRoutes);
+    gl.uniform4fv(gl.getUniformLocation(shader, 'u_view'), this.view);
+    gl.uniform2f(gl.getUniformLocation(shader, 'u_world'), this.layout.worldWidth, this.layout.sceneHeight);
+    gl.uniform1f(gl.getUniformLocation(shader, 'u_phase'), (now % 120000) / 120000);
+    gl.uniform1f(gl.getUniformLocation(shader, 'u_packets'), Number(packets));
+    for (const [name, size, offset] of [['a_path', 4, 0], ['a_sample', 3, 16]]) {
+      const location = gl.getAttribLocation(shader, name);
+      gl.enableVertexAttribArray(location); gl.vertexAttribPointer(location, size, gl.FLOAT, false, 28, offset);
+    }
+    this.setPalette(shader);
+    gl.drawArrays(gl.TRIANGLES, 0, packets ? count * 24 : this.innerRouteCount);
+  }
+
+  draw(now) {
+    const gl = this.gl;
+    gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); gl.disable(gl.DEPTH_TEST);
+    this.drawLines(this.routes, this.routeCount); this.drawPackets(now);
+    this.drawInner(now, false); this.drawInner(now, true);
+    gl.enable(gl.DEPTH_TEST); gl.useProgram(this.ring); gl.bindBuffer(gl.ARRAY_BUFFER, this.mesh);
+    const uv = gl.getAttribLocation(this.ring, 'a_uv');
+    gl.enableVertexAttribArray(uv); gl.vertexAttribPointer(uv, 2, gl.FLOAT, false, 0, 0);
+    gl.uniform4fv(gl.getUniformLocation(this.ring, 'u_view'), this.view);
+    gl.uniform2f(gl.getUniformLocation(this.ring, 'u_world'), this.layout.worldWidth, this.layout.sceneHeight);
+    gl.uniform1f(gl.getUniformLocation(this.ring, 'u_phase'), (now % 120000) / 120000);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.texture);
+    gl.uniform1i(gl.getUniformLocation(this.ring, 'u_text'), 0);
+    this.setPalette(this.ring);
+    gl.drawArrays(gl.TRIANGLES, 0, this.meshCount);
+  }
+
+  animate = timestamp => {
+    if (this.destroyed || document.hidden || this.gl.isContextLost()) return;
+    this.raf = requestAnimationFrame(this.animate);
+    if (timestamp == null) return;
+    const state = this.telemetry.current;
+    const interval = 1000 / (state.paused || this.reduced.matches ? 1 : state.eco ? 15 : state.quality === 'standard' ? 30 : 60);
+    if (this.nextFrame != null && timestamp + .5 < this.nextFrame) return;
+    this.nextFrame = Math.max(this.nextFrame ?? timestamp, timestamp - interval) + interval;
+    const started = performance.now(), now = Date.now();
+    state.queue.length = 0;
+    if (!state.paused && !this.reduced.matches) this.visualTime = now;
+    this.updateTheme(); this.updateAtlas(this.visualTime || now); this.draw(this.visualTime || 0);
+    state.frameMs = performance.now() - started;
+    this.frameCount++;
+    if (timestamp - this.sampleAt > 1000) {
+      state.fps = Math.round(this.frameCount * 1000 / (timestamp - this.sampleAt));
+      this.sampleAt = timestamp; this.frameCount = 0;
+    }
+  };
+
+  destroy() {
+    this.destroyed = true; cancelAnimationFrame(this.raf);
+    document.removeEventListener('visibilitychange', this.onVisibility);
+    this.canvas.removeEventListener('webglcontextlost', this.onLost);
+    this.canvas.removeEventListener('webglcontextrestored', this.onRestored);
+    const gl = this.gl;
+    [this.mesh, this.packetBuffer, this.routes, this.innerRoutes, this.innerPackets].forEach(buffer => gl.deleteBuffer(buffer));
+    [this.ring, this.line, this.packetProgram, this.innerProgram].forEach(value => gl.deleteProgram(value)); gl.deleteTexture(this.texture);
+  }
+}

@@ -1,10 +1,12 @@
-import { bandPath, bezier, hash, mint, rim, traceRim, white } from './geometry.js';
+import { bandPath, bezier, hash, rim, traceRim } from './geometry.js';
+import { themeFor } from '../themes.js';
 
 export class DispatchScene {
   constructor(canvas, telemetry) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d', { alpha: false });
     this.telemetry = telemetry;
+    this.palette = themeFor(telemetry.current.theme);
     this.backdrop = document.createElement('canvas');
     this.atlas = document.createElement('canvas');
     this.particles = [];
@@ -53,19 +55,19 @@ export class DispatchScene {
     const ctx = this.backdrop.getContext('2d');
     const w = this.width, h = this.height;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    ctx.fillStyle = '#0b1114'; ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = 'rgba(111,169,158,.035)'; ctx.lineWidth = 1;
+    ctx.fillStyle = this.palette.background; ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = `rgba(${this.palette.trace},.035)`; ctx.lineWidth = 1;
     for (let x = 0; x < w; x += 80) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
     for (let y = 0; y < h; y += 80) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
-    bandPath(ctx, w, h); ctx.fillStyle = '#102124'; ctx.fill();
+    bandPath(ctx, w, h); ctx.fillStyle = this.palette.band; ctx.fill();
     for (const outer of [false, true]) {
       for (const [offset, alpha, line] of [[-7,.08,3],[-3,.35,1],[0,.75,1.2],[3,.22,1],[7,.12,2]]) {
-        ctx.strokeStyle = `rgba(${mint},${alpha})`; ctx.lineWidth = line;
+        ctx.strokeStyle = `rgba(${this.palette.accent},${alpha})`; ctx.lineWidth = line;
         traceRim(ctx, w, h, outer, offset);
       }
       for (let y = 0; y < h; y += 6) {
         const x = rim(y, w, h, outer);
-        ctx.fillStyle = `rgba(${mint},${y % 30 === 0 ? .6 : .25})`;
+        ctx.fillStyle = `rgba(${this.palette.accent},${y % 30 === 0 ? .6 : .25})`;
         ctx.fillRect(x + (outer ? -7 : 3), y, y % 30 === 0 ? 5 : 3, 1);
       }
     }
@@ -85,7 +87,7 @@ export class DispatchScene {
         const x = rim(targetY, w, h);
         ctx.beginPath(); ctx.moveTo(178, y);
         ctx.bezierCurveTo(w * (.23 + seed * .07), y, x - 95, targetY + (seed - .5) * 60, x, targetY);
-        ctx.strokeStyle = `rgba(${j === i % 3 ? mint : white},${j === i % 3 ? .3 : .12})`;
+        ctx.strokeStyle = `rgba(${j === i % 3 ? this.palette.accent : this.palette.ink},${j === i % 3 ? .3 : .12})`;
         ctx.lineWidth = .65; ctx.stroke();
       }
     }
@@ -95,7 +97,7 @@ export class DispatchScene {
       const y = seed * h;
       ctx.beginPath(); ctx.moveTo(rim(y, w, h, true), y);
       ctx.lineTo(w + 50, y + (y - h / 2) * .45);
-      ctx.strokeStyle = `rgba(${white},.045)`; ctx.lineWidth = .6; ctx.stroke();
+      ctx.strokeStyle = `rgba(${this.palette.ink},.045)`; ctx.lineWidth = .6; ctx.stroke();
     }
   }
 
@@ -103,12 +105,12 @@ export class DispatchScene {
     const w = this.width, h = this.height;
     ['01 / PROMPT INGRESS', '02 / TOOL DISPATCH', '03 / RESPONSE EGRESS'].forEach((label, i) => {
       const y = h * [.19,.51,.84][i], x = rim(y, w, h);
-      ctx.strokeStyle = `rgba(${mint},.55)`;
+      ctx.strokeStyle = `rgba(${this.palette.accent},.55)`;
       for (const r of [4, 8, 12]) { ctx.beginPath(); ctx.ellipse(x - 2, y, r * .5, r, -.1, 0, Math.PI * 2); ctx.stroke(); }
       if (w < 720) return;
-      ctx.fillStyle = '#0a1416'; ctx.fillRect(x - 159, y - 20, 147, 15);
-      ctx.strokeStyle = `rgba(${mint},.3)`; ctx.strokeRect(x - 159, y - 20, 147, 15);
-      ctx.fillStyle = `rgba(${white},.8)`; ctx.font = '8px "IBM Plex Mono", monospace';
+      ctx.fillStyle = this.palette.surface; ctx.fillRect(x - 159, y - 20, 147, 15);
+      ctx.strokeStyle = `rgba(${this.palette.accent},.3)`; ctx.strokeRect(x - 159, y - 20, 147, 15);
+      ctx.fillStyle = `rgba(${this.palette.ink},.8)`; ctx.font = '8px "IBM Plex Mono", monospace';
       ctx.fillText(label, x - 153, y - 10);
     });
   }
@@ -128,7 +130,7 @@ export class DispatchScene {
     ctx.scale(this.dpr, this.dpr);
     ctx.font = '9px "IBM Plex Mono", monospace';
     if (!events.length) {
-      ctx.fillStyle = `rgba(${mint},.65)`;
+      ctx.fillStyle = `rgba(${this.palette.accent},.65)`;
       const label = !immersive ? 'AWAITING LOCAL TELEMETRY' : replayStatus === 'loading' ? 'LOADING LOCAL HISTORY' : replayStatus === 'error' ? 'HISTORY UNAVAILABLE' : 'NO LOCAL HISTORY';
       ctx.fillText(label, 12, 100);
       return;
@@ -137,12 +139,12 @@ export class DispatchScene {
     const columns = Math.max(12, Math.floor(width * .54 / 5.4));
     for (const event of page) {
       if (y > 1780) break;
-      ctx.fillStyle = `rgba(${mint},.9)`;
+      ctx.fillStyle = `rgba(${this.palette.accent},.9)`;
       ctx.fillText(`${immersive ? 'REPLAY / ' : ''}${event.provider.toUpperCase()} / ${event.kind.toUpperCase()}`, 5, y);
       y += 16;
       const startY = y;
       ctx.save(); ctx.beginPath(); ctx.rect(0, startY - 11, width * .56, 160); ctx.clip();
-      ctx.fillStyle = `rgba(${white},.9)`;
+      ctx.fillStyle = `rgba(${this.palette.ink},.9)`;
       const lines = event.preview.replace(/\t/g, '  ').split('\n').slice(0, 5);
       for (const line of lines) {
         for (let offset = 0; offset < Math.min(line.length || 1, columns * 2); offset += columns) {
@@ -161,11 +163,11 @@ export class DispatchScene {
     const columns = width > 300 ? 8 : 5;
     const bytes = new TextEncoder().encode(event.preview).slice(0, columns * 8);
     const cell = width * .39 / columns;
-    ctx.fillStyle = `rgba(${mint},.6)`;
+    ctx.fillStyle = `rgba(${this.palette.accent},.6)`;
     ctx.font = '7px "IBM Plex Mono", monospace';
     ctx.fillText('UTF-8 / HEX', width * .6, y - 14);
     ctx.font = '8px "IBM Plex Mono", monospace';
-    ctx.fillStyle = `rgba(${white},.92)`;
+    ctx.fillStyle = `rgba(${this.palette.ink},.92)`;
     for (let i = 0; i < bytes.length; i++) {
       const x = width * .6 + (i % columns) * cell;
       ctx.fillText(bytes[i].toString(16).padStart(2, '0').toUpperCase(), x, y + Math.floor(i / columns) * 10);
@@ -185,7 +187,7 @@ export class DispatchScene {
         const seed = hash(event.id + j);
         this.particles.push({ t: -hash(`${event.id}:delay:${j}`) * .6,
           speed: .14 + hash(`${event.id}:speed:${j}`) * .18, index, port, seed,
-          color: event.provider === 'codex' ? mint : white, width: j % 9 === 0 ? 1.5 : .65 });
+          color: event.provider === 'codex' ? this.palette.accent : this.palette.ink, width: j % 9 === 0 ? 1.5 : .65 });
       }
     }
     if (this.particles.length > 760) this.particles.splice(0, this.particles.length - 760);
@@ -210,7 +212,7 @@ export class DispatchScene {
       // Decorative particles never enter telemetry queues, event logs or counters.
       this.particles.push({ ambient: true, t: prime ? hash(id + ':phase') : 0,
         speed: .14 + hash(id + ':speed') * .18, index: Math.floor(hash(id + ':lane') * 14),
-        port: Math.floor(hash(id + ':port') * 3), seed, color: seed > .25 ? mint : white,
+        port: Math.floor(hash(id + ':port') * 3), seed, color: seed > .25 ? this.palette.accent : this.palette.ink,
         width: seed > .9 ? 1.5 : .65 });
     }
   }
@@ -262,7 +264,7 @@ export class DispatchScene {
       const opacity = Math.min(1, (1 - particle.t) * 4) * .8;
       ctx.beginPath(); ctx.moveTo(...tail); ctx.lineTo(...head);
       ctx.strokeStyle = `rgba(${particle.color},${opacity})`; ctx.lineWidth = particle.width; ctx.stroke();
-      if (particle.width > 1) { ctx.fillStyle = `rgba(${mint},.9)`; ctx.fillRect(head[0] - 1, head[1] - 1, 2, 2); }
+      if (particle.width > 1) { ctx.fillStyle = `rgba(${this.palette.accent},.9)`; ctx.fillRect(head[0] - 1, head[1] - 1, 2, 2); }
     }
     this.particles = alive;
   }
@@ -273,6 +275,12 @@ export class DispatchScene {
     const dt = Math.min(.2, (now - this.lastTime) / 1000);
     this.lastTime = now;
     const state = this.telemetry.current;
+    if (this.palette.id !== themeFor(state.theme).id) {
+      const previous = this.palette;
+      this.palette = themeFor(state.theme);
+      this.particles.forEach(particle => { particle.color = particle.color === previous.accent ? this.palette.accent : this.palette.ink; });
+      this.paintAtlas(); this.paintBackdrop();
+    }
     if (this.quality !== state.quality) this.resize();
     if (this.lastProvider !== state.provider) {
       this.lastProvider = state.provider;

@@ -2,11 +2,13 @@ import { useEffect, useRef } from 'react';
 import { ArrowUpRight } from '@phosphor-icons/react';
 import { bytes, count, labels, time } from './format.js';
 import { hash } from './scene/geometry.js';
+import { themeFor } from './themes.js';
 
-function EventGraph({ events }) {
+function EventGraph({ events, theme }) {
   const canvas = useRef(null);
   useEffect(() => {
     const node = canvas.current;
+    const palette = themeFor(theme);
     const paint = () => {
       const { width, height } = node.getBoundingClientRect();
       node.width = width * 1.25; node.height = height * 1.25;
@@ -17,9 +19,9 @@ function EventGraph({ events }) {
         const seed = hash(event.id), progress = index / Math.max(1, recent.length - 1);
         const x = 12 + progress * (width - 24);
         const y = height * .5 + Math.sin(progress * Math.PI * 3) * height * .25 + (seed - .5) * height * .48;
-        ctx.strokeStyle = `rgba(139,244,216,${event.historical ? .12 : .35})`;
+        ctx.strokeStyle = `rgba(${palette.accent},${event.historical ? .12 : .35})`;
         ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 3, y - 4); ctx.stroke();
-        ctx.fillStyle = event.provider === 'codex' ? '#8bf4d8' : '#d8eae6';
+        ctx.fillStyle = `rgb(${event.provider === 'codex' ? palette.accent : palette.ink})`;
         ctx.globalAlpha = event.historical ? .35 : .8;
         ctx.fillRect(x, y, 1.5, 1.5);
       });
@@ -29,20 +31,20 @@ function EventGraph({ events }) {
     };
     paint(); const observer = new ResizeObserver(paint); observer.observe(node);
     return () => observer.disconnect();
-  }, [events]);
-  return <canvas ref={canvas} role="img" aria-label="最近真实事件的分布图，暗点为历史记录" />;
+  }, [events, theme]);
+  return <canvas ref={canvas} role="img" aria-label="Recent event distribution; dim points indicate history" />;
 }
 
-export function Panels({ events, data, selected, onInspect, onConsole, onSession }) {
+export function Panels({ events, data, selected, onInspect, onConsole, onSession, theme }) {
   const recent = events.slice(-9).reverse();
   const current = selected || events.at(-1);
   const sessions = data?.sessions.slice(0, 10) || [];
   const maxBytes = Math.max(1, ...sessions.map(session => session.bytes));
-  return <section className="panel-grid" aria-label="监控面板">
+  return <section className="panel-grid" aria-label="Monitoring panels">
     <div className="panel event-panel">
-      <div className="panel-heading"><h2>TASK FEED <span>EVENT LOG</span></h2><button onClick={onConsole} title="打开全部事件">{count(data?.resource.bufferedEvents)} BUFFERED <ArrowUpRight /></button></div>
+      <div className="panel-heading"><h2>TASK FEED <span>EVENT LOG</span></h2><button onClick={onConsole} title="Inspect all events">{count(data?.resource.bufferedEvents)} BUFFERED <ArrowUpRight /></button></div>
       <div className="event-lines">
-        {!recent.length && <p className="empty">等待本地会话记录…</p>}
+        {!recent.length && <p className="empty">Waiting for local session records…</p>}
         {recent.map(event => <button className="event-line" key={event.id} onClick={() => onInspect(event)}>
           <time>{time(event.timestamp)}</time><b className={event.provider}>{labels[event.kind]}</b><span>{event.tool || event.preview.replace(/\s+/g, ' ') || event.kind}</span>
         </button>)}
@@ -51,12 +53,12 @@ export function Panels({ events, data, selected, onInspect, onConsole, onSession
     </div>
     <div className="panel graph-panel">
       <div className="panel-heading"><h2>OBSERVED / <span>PARTICLE EVENT FIELD</span></h2><span>{events.length} PTS</span></div>
-      <EventGraph events={events} />
+      <EventGraph events={events} theme={theme} />
       <div className="graph-legend"><span><i className="legend-dot codex" /> CODEX</span><span><i className="legend-dot claude" /> CLAUDE</span><span>LAST {Math.min(180, events.length)} EVENTS</span></div>
     </div>
     <div className="panel code-panel">
       <div className="panel-heading"><h2>WORKSPACE <span>RUNTIME CORE</span></h2><span>{current?.provider.toUpperCase() || '—'}</span></div>
-      <button className="code-preview" onClick={() => current && onInspect(current)} disabled={!current} title="查看完整输入输出">
+      <button className="code-preview" onClick={() => current && onInspect(current)} disabled={!current} title="Inspect full input and output">
         {(current?.preview || 'Awaiting a local session…').split('\n').slice(0, 9).map((line, index) => <div key={index}><em>{String(index + 1).padStart(3, '0')}</em><span>{line || ' '}</span></div>)}
       </button>
       <div className="panel-note"><span>{current ? `${labels[current.kind]} / ${bytes(current.bytes)}` : 'NO RECORD'}</span><span>READ ONLY <ArrowUpRight /></span></div>

@@ -1,8 +1,8 @@
 # Agent Ops — visual and functional QA
 
-final result: passed
+final result: passed (web visual and native desktop/preview scope); authenticated lock/unlock cycle not exercised
 
-Latest revision: immersive display, 4K rendering and historical waterfall replay, verified 2026-11-05. The original-version sections below remain a baseline; the final revision section supersedes their standard-quality, no-display-effects and ECO-on handoff settings.
+Latest revision: compact floating-window layout, unobtrusive window chrome and English product copy, following the figure-eight / inner motion / theme revision, verified 2026-11-05. Native floating-window interactions and physical dual-screen previews passed. The system screen saver is selected with a five-minute start delay and its extension rendered in System Settings. The authenticated lock/unlock cycle was not triggered. Earlier sections are historical baselines; later revisions supersede their design and acceptance status.
 
 ## Evidence and comparison conditions
 
@@ -75,3 +75,76 @@ The reference shows heavy traffic; the real machine had mostly one active Codex 
 - Verified immersive/high-quality persistence after reload, pause/resume, quality toggle and restored `IDLE / COASTING` when display mode is disabled. Final preview: immersive on, high quality on, ECO off, all providers selected.
 - Responsive checks: 390×844 screenshot `artifacts/immersive-mobile.png`; no horizontal overflow and a 21-pixel separation between metrics and controls. At 800 pixels, controls sit below the title and to the right of metrics, without overlap.
 - No console errors or warnings observed. Performance instrumentation and temporary viewport/device overrides were removed; the local preview remains open at http://127.0.0.1:4318/.
+
+## Initial dual-screen Möbius / native app revision (historical)
+
+**Web design final result: passed. Native interactive acceptance: pending manual Mac unlock.**
+
+### Direction and fidelity
+
+- Latest source: `/Users/mac/Downloads/20261105-120416.jpeg`, a 1080×2430 photographed display. The user requested its dense curved log texture and fine transmission lines in a dual-screen Möbius composition, while preserving the existing single-screen design. Phone controls, glare, monitor bezel and perspective distortion are outside the app scope.
+- Compared the source crop and implementation together in `artifacts/mobius-reference-comparison.png`, including the ring at readable detail; complete composition in `artifacts/mobius-panorama.png` (3840×1080 CSS pixels, DPR 1). `artifacts/mobius-panorama-preview.png` is a downsampled presentation copy.
+- Typography: original IBM Plex Mono and terminal labels retained. Real preview text forms variable-length blocks; adjacent matrices encode real UTF-8 bytes. Log strings differ from the photograph because the local data is real.
+- Layout: tall central half-twisted strip with continuous rim, outward left/right streams and fine inner return paths. Original masthead, metrics, sessions and terminal panels remain in the shared composition. Each physical screen sees its own crop, rather than two independently laid-out copies.
+- Color: original charcoal/mint palette retained; brighter off-white glyph blocks and mint rim reflect the new reference. The source's photographed pink cast is not added to the existing palette.
+- Assets/rendering: actual WebGL geometry and moving log texture implement the requested live visualization; no screenshot is used as a fake live surface. Raster asset generation is not applicable to this dynamic data graphic.
+- Single-screen fidelity: all six measured original regions match the prior baseline exactly at 1920×1080: canvas `(0,0,1920,833)`, masthead `(24,16,421.828125,52.09375)`, rail `(24,76,320,742)`, panels `(14,839,1892,205)`, throughput `(1715,620,176,86)`, state `(1640,732,251,63)`. Evidence: `artifacts/single-layout-regression.json` and `artifacts/single-original-current.png`. Single-screen continues to use the original Canvas renderer.
+
+### Resolved findings and final checks
+
+1. **P2 — initial ring too dim and uniform.** Initial `mobius-panorama-v1.png` had a weak rim and uninterrupted text rows. Increased rim/glyph contrast and switched to variable log blocks with byte matrices. The final reference comparison shows readable density and separation, with fine return paths through the opening.
+2. **P2 — excess JavaScript work for decorative particles.** Moved packet motion from per-frame CPU arrays to one immutable GPU seed buffer and shared clock uniforms. The final animation retains the same bidirectional dispatch while reducing the sampled browser main-thread load.
+3. **P1 — differing display widths could disagree on canvas height.** Both views now derive the scene height and panel rows from the shared world size. A 1280+1920 layout gives both canvases height 833 and both panel grids y=839/width=3172. Evidence: `artifacts/mobius-mixed-display-geometry.json`.
+4. Pausing freezes the ring exactly: the same core crop from `mobius-paused-a.png` and `mobius-paused-b.png` has no pixel differences. Paused render cadence falls to 1 FPS; resume returns to flowing display mode.
+5. Right display at CSS 1920×1080 / DPR 2 uses canvas backing **3840×1666**, and showed 60 FPS. Evidence: `artifacts/mobius-right-4k.png`. Left slice: `artifacts/mobius-left-browser.png`. This browser test does not substitute for native mixed-refresh hardware acceptance.
+6. Final sampled GPU packet implementation: **57.46 seconds**, **60 FPS**, browser main-thread task time **5.66%**, script time **1.49%**, JS heap **8.33 MiB** at 3840×1080 / DPR 1. Collector readout at the sample endpoint was **0.21% CPU / 32.5 MB**. Evidence: `artifacts/mobius-browser-performance.json`. Main-thread figures exclude GPU/compositor and other processes; the collector endpoint is not an average.
+7. Production web build, optimized Swift host/extension build, deep/strict signature verification, 10 JavaScript tests, and native display-layout tests passed. PluginKit reports the installed extension. No browser errors or warnings appeared in the checked states. No real source logs were changed by tests.
+
+### Native acceptance status at that revision (superseded below)
+
+The installed App contains a resizable floating NSPanel, frame persistence, small-window page scaling, menu-bar restore, single/automatic full-screen previews, and renderer release on close/minimize/lock/screen-saver transitions. The screen saver extension remains separately registered.
+
+The computer tool reported the Mac locked and automatic unlock paused due to physical input. Requested manual unlock and continued independent build/browser verification. **The new floating window has not yet been exercised through the native UI, the custom screen saver has not yet been selected in System Settings, and real lock/unlock cleanup is not claimed as verified.** These are the remaining acceptance steps after unlock; source code/build success alone is not proof of them.
+
+## Final figure-eight / inner motion / themes revision
+
+**Visual and native desktop/preview result: passed.** The remaining untested scenario is a complete authenticated lock/unlock cycle.
+
+### Reference fidelity and resolved findings
+
+- Sources: the same photographed display at `/Users/mac/Downloads/20261105-120416.jpeg`, the user's silver/pink theme reference, and the subsequent screenshot requesting movement inside the loop. The durable direction is a wider, flatter horizontal eight with each lobe occupying roughly half its physical screen, larger log glyphs and thicker transmission strokes. Original single-screen positions must remain unchanged.
+- Final comparison inspected together: `artifacts/infinity-reference-comparison.png`. Full panorama: `artifacts/infinity-inner-b.png` (3840×1080 CSS, DPR 1); presentation copy: `artifacts/infinity-preview.png`. The paired depth-separated crossings create a continuous half-twisted eight. Both lobes contain curved filaments and visible packet heads; outer streams spread toward their corresponding screen edge.
+- Typography and density: IBM Plex Mono retained, real log blocks enlarged to a 3072×384 text atlas with 17-pixel source glyphs. Real UTF-8 matrices supply the file-data texture; no fabricated event text or counters were introduced. Thin triangular ribbons provide reliably thicker strokes on Metal/WebGL implementations that clamp native line widths.
+- Palette: Settings now contains accessible radio choices for the original mint palette and `银白光流`, with warm white glyphs, charcoal surfaces and pale pink streams matching the supplied reference. `artifacts/theme-settings.png` shows the selector; `artifacts/paper-single.png` verifies the original single-screen composition in the new colorway; `artifacts/infinity-mint.png` verifies the dual-screen mint variant. Theme-only changes leave single-screen geometry and positioning intact.
+- **P2 resolved — static inner web.** 176 inner curves now drift smoothly; 208 file heads with short tails travel in mirrored directions across the two lobes. `artifacts/infinity-inner-a.png` and `artifacts/infinity-inner-b.png` are distinct animation frames. An interior-only region `(1120,370)-(1500,500)` changed at 30,805 of 49,400 pixels above an 8-level threshold, excluding the text ribbon. The rendered curves and heads were visually inspected, not inferred solely from the image difference.
+- Inner and outer motion uses immutable GPU buffers and a shared clock; 512 outer + 208 inner packets keep the total at 720. History replay remains bounded/cached, and decorative movement never enters live traffic statistics. Pause, hidden-page suspension, reduced motion and the 60 FPS ceiling remain in place.
+
+### Theme behavior and backend validation
+
+- Browser radio selection, page reload persistence and both themes were exercised. The native Settings panel reflected the browser's mint choice (`artifacts/theme-native-synced.png`); choosing paper in the native app updated the shared preference. Both choices were verified; the latest local preference remains authoritative.
+- A bounded, atomically saved theme setting lives outside the source transcripts. Only same-origin JSON `PUT /api/preferences` is writable; it accepts exactly one valid theme field and at most 1 KiB. Existing log interfaces remain read-only.
+- All 12 JavaScript tests passed without skips, including persistent/serialized theme writes, invalid inputs, origin/method/body restrictions and a live SSE preference update. Production web build, native optimized build and signing passed. No checked browser console errors or warnings were observed.
+
+### Native UI and physical displays
+
+- The updated app is installed at `/Users/mac/Applications/Agent Ops Screen Saver.app`. Floating-window title-bar drag and corner resize were exercised. The resized 1914×1090-pixel capture is `artifacts/floating-native-resized.png`; the later app launch restored the saved window dimensions. Current paper floating state: `artifacts/floating-native-paper-final.png`.
+- Native automatic preview used the actual 3840×1080 shared world: 27B30H at x=0 / DPR 1 and U27P10 at x=1920 / DPR 2. Verified full-screen captures: `artifacts/infinity-native-left.png` (1920×1080) and `artifacts/infinity-native-right.png` (3840×2160). They are separate capture times, not a frame-synchronized photographic seam test. The shared shader clock supplies cross-screen animation phase.
+- **P2 resolved — app activation exited preview.** The reopen handler now retains an already visible full-screen preview. Native focus switching between the displays succeeded after rebuilding and installing this fix.
+- At 14:42:18, pressing Escape returned to the floating panel. System lifecycle logs recorded two `renderer released` entries followed by one `floating renderer started`; the test left no full-screen preview covering the desktop.
+- System Settings selected `Agent Ops · Continuous Link` and saved a five-minute delay (`artifacts/system-saver-enabled.png`). The actual extension process logged a two-screen viewport and rendered the live right-screen preview (`artifacts/system-saver-selected.png`). This verifies extension loading and selection, but does not claim a password-authenticated lock/unlock test. Existing password and display-sleep settings were unchanged.
+
+### Final performance and handoff
+
+- `artifacts/infinity-performance.json`: 62.32 seconds at 3840×1080 / DPR 1, immersive animation, observed 60 FPS; browser main-thread task time 5.86%, script time 1.73%, JS heap 7.03 MiB. Collector endpoint readout was 0.11% CPU / 30.7 MB, not a sampled average. GPU/compositor and other processes are excluded; these numbers are not whole-machine CPU or a universal frame-rate guarantee.
+- Temporary browser viewport overrides and performance instrumentation were removed. The user closed the temporary IAB preview tabs during native testing; the installed app is left in floating mode. The loopback service remains running at `http://127.0.0.1:4318/` and the selected screen saver uses the same local service.
+- No public deployment, source-log writes, hooks, proxy changes, fabricated metrics or uploaded log screenshots were introduced. The Sites handoff files remain unchanged.
+
+## Compact floating window / English interface revision
+
+- Removed the top-right Console button. Event and session inspection remain available through their existing entries.
+- Floating desktop mode unmounts all four bottom panels when native width is below 1120 points or height below 700 points. Both dimensions must reach the threshold to restore the panels. This uses native dimensions before page zoom; browser and screen-saver layouts are unaffected.
+- `artifacts/compact-breakpoints.json` verifies 1120×700 → four panels, 1119×700 → zero, 1120×699 → zero, 900×550 → zero, and 1600×900 → four. No vertical overflow or top Console button occurred. Native zoom also restored all four panel headings (`artifacts/floating-clean-expanded.png`); the restored small window contains none (`artifacts/floating-clean-final.png`).
+- The native window uses full-size dark content without a visible title or traffic lights. Small monochrome controls sit in the native title-bar layer and brighten on hover; native Resize was exercised successfully. Top-edge dragging, native resizability and menu/keyboard access remain available. Product menus, labels, accessibility text, tooltips and errors are English; original session names and log content remain untouched.
+- Native Settings showed English theme labels, display options and source information; close returned to the compact dashboard (`artifacts/settings-english.png`). The native capture also shows the discrete window controls. All 12 integration tests passed without skips; production web/native builds and strict code-sign verification passed.
+- A final desktop-only inset reserves the native controls' width independently of page zoom, preventing overlap with the web toolbar. The final background browser check at 1178×620 found zero panels, no header/control overlap, and no console warnings/errors (`artifacts/floating-web-final.png`).
+- After the user requested tests away from their primary work screen, native UI automation stopped. Remaining validation ran in a hidden browser tab, which was closed, and its temporary viewport override was reset. Future visible tests belong on the secondary 27B30H. The final web assets were copied into the installed runtime without restarting the current app or collector; the final spacing refinement loads when the floating renderer is next opened.

@@ -4,13 +4,16 @@ import { stat } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
 import { publicEvent, createSnapshot } from './snapshot.mjs';
 import { createReplayReader } from './replay.mjs';
+import { createPreferences, readThemeRequest } from './preferences.mjs';
 
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.woff2': 'font/woff2', '.svg': 'image/svg+xml', '.png': 'image/png' };
 const json = (res, code, body) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(body)); };
 
-export function createDashboardServer(collector, { staticDir = resolve('dist/client') } = {}) {
+export function createDashboardServer(collector, { staticDir = resolve('dist/client'), preferencesFile } = {}) {
   const clients = new Set();
-  const snapshot = createSnapshot(collector);
+  const telemetrySnapshot = createSnapshot(collector);
+  const preferences = createPreferences(preferencesFile);
+  const snapshot = includeEvents => ({ ...telemetrySnapshot(includeEvents), preferences: preferences.read() });
   const readReplay = createReplayReader(collector);
   let pending = [];
   const onEvent = event => {
@@ -38,9 +41,16 @@ export function createDashboardServer(collector, { staticDir = resolve('dist/cli
     if (!/^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/.test(host)) return json(res, 403, { error: 'Local access only' });
     if (req.headers.origin && req.headers.origin !== `http://${host}`) return json(res, 403, { error: 'Origin rejected' });
     if (req.headers['sec-fetch-site'] === 'cross-site') return json(res, 403, { error: 'Cross-site access rejected' });
-    if (req.method !== 'GET') return json(res, 405, { error: 'Read only' });
     const url = new URL(req.url, 'http://127.0.0.1');
     try {
+      if (url.pathname === '/api/preferences' && req.method === 'PUT') {
+        if (req.headers.origin !== `http://${host}`) return json(res, 403, { error: 'Same-origin settings request required' });
+        const value = await readThemeRequest(req);
+        if (value.error) return json(res, value.status, { error: value.error });
+        return json(res, 200, await preferences.set(value.theme));
+      }
+      if (req.method !== 'GET') return json(res, 405, { error: 'Read only' });
+      if (url.pathname === '/api/preferences') return json(res, 200, preferences.read());
       if (url.pathname === '/api/health') return json(res, 200, { ok: true, mode: 'read-only', uptime: process.uptime() });
       if (url.pathname === '/api/snapshot') return json(res, 200, snapshot(true));
       if (url.pathname === '/api/replay') {
