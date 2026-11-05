@@ -2,6 +2,7 @@ import { program, ringVertex, ringFragment, lineVertex, lineFragment, packetVert
 import { packetMesh, routeMesh, ringMesh } from './mobiusGeometry.js';
 import { themeFor, rgb, hexRGB } from '../themes.js';
 import { innerMeshes, innerVertex, INNER_PACKETS, OUTER_PACKETS } from './innerFlow.js';
+import { translate } from '../i18n/catalog.js';
 
 export class MobiusRenderer {
   constructor(canvas, telemetry, layout) {
@@ -78,7 +79,7 @@ export class MobiusRenderer {
   updateAtlas(now) {
     const state = this.telemetry.current;
     const events = state.immersive ? state.replayEvents || [] : state.events || [];
-    const revision = `${state.replayRevision}:${events.length}:${Math.floor(now / 12000)}`;
+    const revision = `${state.language}:${state.replayRevision}:${events.length}:${Math.floor(now / 12000)}`;
     if (revision === this.atlasRevision) return;
     const page = Math.floor(now / 12000);
     if (this.atlasAt && now - this.atlasAt < 2500 && page === this.atlasPage) return;
@@ -89,7 +90,7 @@ export class MobiusRenderer {
     c.font = '500 17px "IBM Plex Mono", monospace'; c.textBaseline = 'top';
     for (let column = 0; column < 6; column++) for (let block = 0; block < 4; block++) {
       const event = events[(page * 17 + column * 4 + block) % events.length];
-      const content = (event?.preview || event?.text || 'WAITING FOR LOCAL LOGS').replace(/\s+/g, ' ');
+      const content = (event?.preview || event?.text || translate(state.language, 'WAITING FOR LOCAL LOGS')).replace(/\s+/g, ' ');
       const hex = Array.from(new TextEncoder().encode(content.slice(0, 80)), byte => byte.toString(16).padStart(2, '0')).join(' ');
       for (let row = 0; row < 5; row++) {
         c.fillStyle = row === 0 ? `rgb(${this.palette.accent})` : row % 3 ? `rgb(${this.palette.ink})` : this.palette.muted;

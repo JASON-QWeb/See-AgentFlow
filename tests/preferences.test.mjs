@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { once } from 'node:events';
@@ -13,12 +13,12 @@ test('theme preference survives restart and serializes rapid writes without touc
   t.after(() => rm(dir, { recursive: true, force: true }));
   const file = join(dir, 'settings', 'preferences.json');
   const preferences = createPreferences(file);
-  assert.deepEqual(preferences.read(), { theme: 'mint' });
-  await Promise.all([preferences.set('paper'), preferences.set('mint'), preferences.set('paper')]);
-  assert.deepEqual(createPreferences(file).read(), { theme: 'paper' });
-  assert.deepEqual(JSON.parse(await readFile(file, 'utf8')), { theme: 'paper' });
-  await assert.rejects(preferences.set('../invalid'));
-  assert.deepEqual(preferences.read(), { theme: 'paper' });
+  assert.deepEqual(preferences.read(), { theme: 'mint', language: 'en' });
+  await Promise.all([preferences.set({ theme: 'paper', language: 'en' }), preferences.set({ theme: 'mint', language: 'en' }), preferences.set({ theme: 'paper', language: 'en' })]);
+  assert.deepEqual(createPreferences(file).read(), { theme: 'paper', language: 'en' });
+  assert.deepEqual(JSON.parse(await readFile(file, 'utf8')), { theme: 'paper', language: 'en' });
+  await assert.rejects(preferences.set({ theme: '../invalid' }));
+  assert.deepEqual(preferences.read(), { theme: 'paper', language: 'en' });
 });
 
 test('only a bounded same-origin theme update is writable and all snapshots receive the saved theme', async t => {
@@ -37,7 +37,8 @@ test('only a bounded same-origin theme update is writable and all snapshots rece
   assert.equal((await put('x'.repeat(2048))).status, 413);
   assert.equal((await put('{bad')).status, 400);
   assert.equal((await put('{"theme":"unknown"}')).status, 400);
-  assert.deepEqual(await (await put('{"theme":"paper"}')).json(), { theme: 'paper' });
+  assert.equal((await put('{"language":"unsupported"}')).status, 400);
+  assert.deepEqual(await (await put('{"theme":"paper"}')).json(), { theme: 'paper', language: 'en' });
   for (const route of ['/api/preferences', '/api/snapshot']) {
     const response = await fetch(base + route).then(res => res.json());
     assert.equal((response.preferences || response).theme, 'paper');
@@ -48,9 +49,29 @@ test('only a bounded same-origin theme update is writable and all snapshots rece
   const stream = await fetch(base + '/api/stream', { signal: controller.signal });
   const reader = stream.body.getReader();
   const { value } = await reader.read();
-  assert.match(new TextDecoder().decode(value), /"preferences":\{"theme":"paper"\}/);
+  assert.match(new TextDecoder().decode(value), /"preferences":\{"theme":"paper","language":"en"\}/);
   await put('{"theme":"mint"}');
   const next = await reader.read();
-  assert.match(new TextDecoder().decode(next.value), /event: update[\s\S]*"preferences":\{"theme":"mint"\}/);
+  assert.match(new TextDecoder().decode(next.value), /event: update[\s\S]*"preferences":\{"theme":"mint","language":"en"\}/);
   controller.abort();
+  assert.deepEqual(await (await put('{"language":"zh-CN"}')).json(), { theme: 'mint', language: 'zh-CN' });
+  assert.deepEqual(await (await put('{"theme":"white"}')).json(), { theme: 'white', language: 'zh-CN' });
+});
+
+
+test('legacy settings migrate and concurrent partial updates preserve both language and theme', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'agent-ops-migration-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = join(dir, 'preferences.json');
+  await writeFile(file, JSON.stringify({ theme: 'paper' }));
+  const preferences = createPreferences(file);
+  assert.deepEqual(preferences.read(), { theme: 'paper', language: 'en' });
+  await Promise.all([preferences.set({ theme: 'white' }), preferences.set({ language: 'zh-CN' })]);
+  assert.deepEqual(createPreferences(file).read(), { theme: 'white', language: 'zh-CN' });
+  await preferences.set({ language: 'zh-TW' });
+  const result = preferences.read(); result.theme = 'mint';
+  assert.deepEqual(preferences.read(), { theme: 'white', language: 'zh-TW' });
+  for (const bad of [{}, [], null, { language: 'unsupported' }, { constructor: 'white' }, { path: file }]) {
+    await assert.rejects(preferences.set(bad));
+  }
 });

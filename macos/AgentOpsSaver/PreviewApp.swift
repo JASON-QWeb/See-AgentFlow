@@ -15,19 +15,31 @@ final class PreviewDelegate: NSObject, NSApplicationDelegate {
     private var single = false
     private var previewing = false
     private let displayMenu = NSMenu(title: "Displays")
+    private let preferences = DesktopPreferences()
+    private lazy var menuPreferences = PreferencesMenu(preferences)
+    private let background = CommandLine.arguments.contains("--background")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installMenus()
-        floating = FloatingDashboard()
+        floating = FloatingDashboard(preferences: preferences)
         inputMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if event.keyCode == 53, self?.previewing == true { self?.showFloating(); return nil }; return event
         }
         screenObserver = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
             object: nil, queue: .main) { [weak self] _ in if self?.previewing == true { self?.rebuild() } }
-        if CommandLine.arguments.contains("--preview") || CommandLine.arguments.contains("--single") {
-            single = CommandLine.arguments.contains("--single"); startPreview()
-        } else { showFloating() }
-        NSApp.activate(ignoringOtherApps: true)
+        RuntimeSetup.prepare { [weak self] error in
+            guard let self else { return }
+            if let error {
+                if self.background { NSLog("Agent Ops setup failed: %@", error); return }
+                let alert = NSAlert(); alert.messageText = "Agent Ops Setup"
+                alert.informativeText = error; alert.runModal(); return
+            }
+            if self.background { return }
+            if CommandLine.arguments.contains("--preview") || CommandLine.arguments.contains("--single") {
+                self.single = CommandLine.arguments.contains("--single"); self.startPreview()
+            } else { self.showFloating() }
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 
     private func actions() -> NSMenu {
@@ -37,6 +49,10 @@ final class PreviewDelegate: NSObject, NSApplicationDelegate {
                                      ("Preview Single Display", #selector(previewSingle), "s")] {
             let item = menu.addItem(withTitle: title, action: action, keyEquivalent: key); item.target = self
         }
+        menu.addItem(.separator())
+        let onTop = menu.addItem(withTitle: "Always on Top", action: #selector(toggleAlwaysOnTop(_:)), keyEquivalent: "")
+        onTop.target = self; onTop.identifier = NSUserInterfaceItemIdentifier("alwaysOnTop")
+        onTop.state = preferences.alwaysOnTop ? .on : .off
         menu.addItem(.separator())
         let settings = menu.addItem(withTitle: "Screen Saver Settings…", action: #selector(openSettings), keyEquivalent: "")
         settings.target = self
@@ -59,6 +75,8 @@ final class PreviewDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem?.button?.image = NSImage(systemSymbolName: "point.3.connected.trianglepath.dotted", accessibilityDescription: "Agent Ops")
         statusItem?.menu = actions()
+        menuPreferences.attach(menu)
+        if let statusMenu = statusItem?.menu { menuPreferences.attach(statusMenu) }
     }
 
     private func clearPreview() {
@@ -92,10 +110,15 @@ final class PreviewDelegate: NSObject, NSApplicationDelegate {
     @objc private func previewSingle() { single = true; startPreview() }
     @objc private func showFloating() { previewing = false; clearPreview(); floating?.setPreviewActive(false); floating?.show() }
     @objc private func focusDisplay(_ sender: NSMenuItem) { windows[sender.tag].makeKeyAndOrderFront(nil) }
+    @objc private func toggleAlwaysOnTop(_ sender: NSMenuItem) {
+        floating?.setAlwaysOnTop(!preferences.alwaysOnTop)
+        sender.state = preferences.alwaysOnTop ? .on : .off
+    }
     @objc private func openSettings() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.ScreenSaver-Settings.extension") { NSWorkspace.shared.open(url) }
     }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        NSApp.setActivationPolicy(.regular)
         if !previewing || !flag { showFloating() }
         return true
     }
@@ -111,7 +134,8 @@ final class PreviewDelegate: NSObject, NSApplicationDelegate {
 struct PreviewEntry {
     static func main() {
         let app = NSApplication.shared, delegate = PreviewDelegate()
-        app.setActivationPolicy(.regular); app.delegate = delegate
+        app.setActivationPolicy(CommandLine.arguments.contains("--background") ? .accessory : .regular)
+        app.delegate = delegate
         withExtendedLifetime(delegate) { app.run() }
     }
 }

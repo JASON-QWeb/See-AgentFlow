@@ -57,3 +57,74 @@
 @media (max-width: 720px) {
   [data-theme="paper"] .metrics, [data-theme="paper"] .source-tabs { background: #090a0dee; }
 }
+
+/* Monochrome light sources over charcoal, with no full-frame CSS filter. */
+:root[data-theme="white"] { --mint: #ebebeb; --muted: #a1a1a1; --line: #555658; --bg: #08090a; color: #f4f4f4; background: #08090a; }
+[data-theme="white"] .masthead p, [data-theme="white"] .eyebrow,
+[data-theme="white"] .metric > span, [data-theme="white"] .throughput-label,
+[data-theme="white"] .panel-heading > span, [data-theme="white"] .panel-heading > button,
+[data-theme="white"] .settings-shell section h3, [data-theme="white"] .code-preview em,
+[data-theme="white"] .graph-legend, [data-theme="white"] .core-status p { color: #b9b9b9; }
+[data-theme="white"] .metric small, [data-theme="white"] .agent-age,
+[data-theme="white"] .agent-index, [data-theme="white"] .source-tabs > span,
+[data-theme="white"] .rail-bottom, [data-theme="white"] .panel-note,
+[data-theme="white"] .statusbar, [data-theme="white"] .throughput > span,
+[data-theme="white"] .scene-coordinate, [data-theme="white"] .source-setting small,
+[data-theme="white"] .settings-note, [data-theme="white"] .resource-grid span { color: #949494; }
+[data-theme="white"] .metrics, [data-theme="white"] .panel,
+[data-theme="white"] .graph-legend, [data-theme="white"] .statusbar,
+[data-theme="white"] .dialog-heading, [data-theme="white"] .setting-row,
+[data-theme="white"] .source-setting, [data-theme="white"] .console-toolbar,
+[data-theme="white"] .console-events, [data-theme="white"] .detail-heading,
+[data-theme="white"] .console-event, [data-theme="white"] .console-footer { border-color: #494a4c; }
+[data-theme="white"] .panel { background: #131415; box-shadow: inset 0 0 0 2px #090a0b; }
+[data-theme="white"] .agent-row { background: #141516d9; border-left-color: #aaa; }
+[data-theme="white"] .agent-row.working { background: #252627dc; border-left-color: #fff; }
+[data-theme="white"] .agent-row small, [data-theme="white"] .agent-row strong > span,
+[data-theme="white"] .event-line time, [data-theme="white"] .source-setting code,
+[data-theme="white"] .detail-heading span, [data-theme="white"] .console-event small { color: #aaa; }
+[data-theme="white"] .source-tabs button, [data-theme="white"] .connection,
+[data-theme="white"] .statusbar button, [data-theme="white"] .icon-button { color: #bbb; }
+[data-theme="white"] .source-tabs button.selected, [data-theme="white"] .panel-heading h2 span,
+[data-theme="white"] .core-caption, [data-theme="white"] .codex,
+[data-theme="white"] .resource-grid b { color: #fff; }
+[data-theme="white"] .claude, [data-theme="white"] .code-preview span,
+[data-theme="white"] .event-line > span, [data-theme="white"] .full-content { color: #ededed; }
+[data-theme="white"] .console-button, [data-theme="white"] .console-toolbar select,
+[data-theme="white"] .search, [data-theme="white"] .text-button { border-color: #68696b; background: #111213d9; }
+[data-theme="white"] .display-toggle[aria-pressed="true"],
+[data-theme="white"] .theme-option[data-selected="true"],
+[data-theme="white"] .console-event.selected, [data-theme="white"] .icon-button:hover,
+[data-theme="white"] .agent-row:hover, [data-theme="white"] .code-preview div:nth-child(3) { background: #2a2b2d; }
+[data-theme="white"] .throughput, [data-theme="white"] .core-status { background: #08090ad9; border-left-color: #bbb; }
+[data-theme="white"] .throughput-track, [data-theme="white"] .session-bars button > span { background: #323335; }
+[data-theme="white"] .session-bars button > span { color: #e7e7e7; }
+[data-theme="white"] .session-bars i, [data-theme="white"] .legend-dot { background: #ebebeb; }
+[data-theme="white"] .legend-dot.claude { background: #fff; }
+[data-theme="white"] .core-status.is-active strong i { box-shadow: 0 0 8px #ebebeb6b; }
+[data-theme="white"] dialog { color: #f4f4f4; background: #111213; border-color: #777; }
+[data-theme="white"] .list-heading { background: #191a1c; color: #ccc; border-color: #5b5c5e; }
+[data-theme="white"] .console-event p { color: #ddd; }
+[data-theme="white"] .search input, [data-theme="white"] .console-toolbar select { color: #eee; }
+@media (max-width: 720px) {
+  [data-theme="white"] .metrics, [data-theme="white"] .source-tabs { background: #08090aee; }
+}
+
+.theme-option:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.language-setting { display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: 11px; }
+.language-setting select { min-width: 160px; padding: 9px 12px; background: var(--bg); color: inherit; border: 1px solid var(--line); border-radius: 0; }
+[data-theme="white"] .masthead h1 span, [data-theme="white"] .empty { color: #999; }
+[data-theme="white"] ::selection { background: #4a4b4d; color: #fff; }
+[data-theme="white"] dialog::backdrop { background: #030304c9; }
+[data-theme="white"] :is(.rail-bottom b, .throughput strong span, .graph-legend > span:last-child,
+  .session-bars em, .statusbar .separator, .dialog-heading h2 span, .search,
+  .list-heading span, .console-event time, .detail-empty > span, .detail-empty p,
+  .console-footer, .setting-row p) { color: #999; }
+[data-theme="white"] :is(.detail-actions button, .detail-actions a, .error, .warning) { color: #ddd; }
+[data-theme="white"] .search input::placeholder { color: #888; }
+[data-theme="white"] :is(.masthead p i, .core-status strong i, .connection i) { background: #999; }
+[data-theme="white"] :is(.connection.connected i, .status-light) { background: #fff; box-shadow: 0 0 7px #ffffff40; }
+[data-theme="white"] .core-status.is-active strong i { background: #fff; }
+[data-theme="white"] :is(.icon-button:hover, .icon-button.active, .display-toggle[aria-pressed="true"]) { border-color: #888; }
+[data-theme="white"] :is(.icon-button.active, .console-event:hover) { background: #2a2b2d; }
+[data-theme="white"] :is(.console-events, .full-content, .settings-dialog) { scrollbar-color: #555 transparent; }

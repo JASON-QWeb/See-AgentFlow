@@ -4,7 +4,7 @@ import { stat } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
 import { publicEvent, createSnapshot } from './snapshot.mjs';
 import { createReplayReader } from './replay.mjs';
-import { createPreferences, readThemeRequest } from './preferences.mjs';
+import { createPreferences, readPreferencesRequest } from './preferences.mjs';
 
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.woff2': 'font/woff2', '.svg': 'image/svg+xml', '.png': 'image/png' };
 const json = (res, code, body) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(body)); };
@@ -45,9 +45,9 @@ export function createDashboardServer(collector, { staticDir = resolve('dist/cli
     try {
       if (url.pathname === '/api/preferences' && req.method === 'PUT') {
         if (req.headers.origin !== `http://${host}`) return json(res, 403, { error: 'Same-origin settings request required' });
-        const value = await readThemeRequest(req);
+        const value = await readPreferencesRequest(req);
         if (value.error) return json(res, value.status, { error: value.error });
-        return json(res, 200, await preferences.set(value.theme));
+        return json(res, 200, await preferences.set(value));
       }
       if (req.method !== 'GET') return json(res, 405, { error: 'Read only' });
       if (url.pathname === '/api/preferences') return json(res, 200, preferences.read());

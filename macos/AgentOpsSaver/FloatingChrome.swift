@@ -4,6 +4,7 @@ import AppKit
 final class FloatingChrome: NSView {
     private var hovering = false
     private var controls: [NSButton] = []
+    private let preferences = DesktopPreferences()
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -14,10 +15,11 @@ final class FloatingChrome: NSView {
                                   target: self, action: action)
             button.isBordered = false; button.contentTintColor = NSColor(white: 0.8, alpha: 1)
             button.imageScaling = .scaleProportionallyDown
-            button.toolTip = title; button.setAccessibilityLabel(title)
+            button.identifier = NSUserInterfaceItemIdentifier(title)
+            button.toolTip = preferences.text(title); button.setAccessibilityLabel(preferences.text(title))
             button.alphaValue = 0.32; addSubview(button); controls.append(button)
         }
-        toolTip = "Window controls"
+        toolTip = preferences.text("Window controls")
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -40,6 +42,14 @@ final class FloatingChrome: NSView {
     override func mouseExited(with event: NSEvent) { setHover(false) }
     private func setHover(_ value: Bool) {
         hovering = value
+        if value {
+            preferences.reloadLanguage()
+            controls.forEach { button in
+                let title = preferences.text(button.identifier?.rawValue ?? "")
+                button.toolTip = title; button.setAccessibilityLabel(title)
+            }
+            toolTip = preferences.text("Window controls")
+        }
         controls.forEach { $0.alphaValue = value ? 1 : 0.32 }
         needsDisplay = true
     }

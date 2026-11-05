@@ -1,5 +1,6 @@
 import { bandPath, bezier, hash, rim, traceRim } from './geometry.js';
 import { themeFor } from '../themes.js';
+import { translate } from '../i18n/catalog.js';
 
 export class DispatchScene {
   constructor(canvas, telemetry) {
@@ -7,6 +8,7 @@ export class DispatchScene {
     this.ctx = canvas.getContext('2d', { alpha: false });
     this.telemetry = telemetry;
     this.palette = themeFor(telemetry.current.theme);
+    this.language = telemetry.current.language || 'en';
     this.backdrop = document.createElement('canvas');
     this.atlas = document.createElement('canvas');
     this.particles = [];
@@ -88,7 +90,7 @@ export class DispatchScene {
         ctx.beginPath(); ctx.moveTo(178, y);
         ctx.bezierCurveTo(w * (.23 + seed * .07), y, x - 95, targetY + (seed - .5) * 60, x, targetY);
         ctx.strokeStyle = `rgba(${j === i % 3 ? this.palette.accent : this.palette.ink},${j === i % 3 ? .3 : .12})`;
-        ctx.lineWidth = .65; ctx.stroke();
+        ctx.lineWidth = this.palette.id === 'white' ? (j === i % 3 ? 1.15 : .6) : .65; ctx.stroke();
       }
     }
     // Static topology; actual traffic and explicitly enabled display particles are separate.
@@ -111,7 +113,7 @@ export class DispatchScene {
       ctx.fillStyle = this.palette.surface; ctx.fillRect(x - 159, y - 20, 147, 15);
       ctx.strokeStyle = `rgba(${this.palette.accent},.3)`; ctx.strokeRect(x - 159, y - 20, 147, 15);
       ctx.fillStyle = `rgba(${this.palette.ink},.8)`; ctx.font = '8px "IBM Plex Mono", monospace';
-      ctx.fillText(label, x - 153, y - 10);
+      ctx.fillText(translate(this.language, label), x - 153, y - 10);
     });
   }
 
@@ -132,7 +134,7 @@ export class DispatchScene {
     if (!events.length) {
       ctx.fillStyle = `rgba(${this.palette.accent},.65)`;
       const label = !immersive ? 'AWAITING LOCAL TELEMETRY' : replayStatus === 'loading' ? 'LOADING LOCAL HISTORY' : replayStatus === 'error' ? 'HISTORY UNAVAILABLE' : 'NO LOCAL HISTORY';
-      ctx.fillText(label, 12, 100);
+      ctx.fillText(translate(this.language, label), 12, 100);
       return;
     }
     let y = 12;
@@ -275,6 +277,10 @@ export class DispatchScene {
     const dt = Math.min(.2, (now - this.lastTime) / 1000);
     this.lastTime = now;
     const state = this.telemetry.current;
+    if (this.language !== state.language) {
+      this.language = state.language;
+      this.paintAtlas(); this.paintBackdrop();
+    }
     if (this.palette.id !== themeFor(state.theme).id) {
       const previous = this.palette;
       this.palette = themeFor(state.theme);

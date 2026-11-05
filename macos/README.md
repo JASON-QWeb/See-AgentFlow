@@ -1,17 +1,18 @@
 # Agent Ops 原生 App / 屏保
 
-本机安装位置：`~/Applications/Agent Ops Screen Saver.app`。这是原生 AppKit / WKWebView 容器，内含 macOS 屏保扩展；界面和只读采集器都在本机运行。
+这是原生 AppKit / WKWebView App，内含 macOS 屏保扩展、只读采集器和独立 Node 运行环境。DMG 安装时拖入 Applications，弹出磁盘映像后打开 App 一次；界面、采集与后台配置都在本机运行，无需另装 Node。
 
 ## 桌面悬浮窗
 
-- 打开 App 默认显示原版看板悬浮窗，置顶但可以正常操作其他应用。
+- 打开 App 默认显示原版看板悬浮窗，置顶但可以正常操作其他应用。菜单栏图标右键菜单的 `Always on Top` 默认勾选；取消后窗口可被其他窗口覆盖，重开 App 会恢复所选层级。
+- 登录时通过用户级 LaunchAgent 静默启动菜单栏，不弹出窗口、不创建浮窗渲染器；从菜单栏选择显示悬浮看板即可打开。采集器独立常驻，关闭窗口或退出菜单栏 App 不会停止采集服务。
 - 拖动上沿移动，拖动边缘/角调整大小；无可见标题与白色标题栏，右上沿使用单色最小化、缩放和关闭控件，悬停时增强显示。`Window` 菜单也保留这些操作，`⌘W` 关闭、`⌘M` 最小化。
 - 最小窗口 560×400；宽不足 1120 或高不足 700 个 macOS 点时，底部四块面板卸载，腾出动画区域。放大至两项均满足后恢复。阈值按原生窗口尺寸计算，不受页面缩放影响。位置、尺寸和展示偏好保存在本机。
 - 菜单栏图标或 App 菜单：`⌘0` 显示悬浮窗，`⌘1` 自动联动全屏预览，`⌘S` 原版单屏预览。预览中 `Esc` 回到悬浮窗，`⌘Q` 退出 App。
 - 关闭悬浮窗会释放 WebView，但保留菜单栏入口；最小化也释放渲染器。
 - 收到锁屏、屏保启动或显示器休眠通知后，悬浮窗隐藏并释放 WebView。解锁/屏保结束后恢复用户原先可见的悬浮窗；关闭过的窗口不会擅自重开。
 - 全屏预览时释放悬浮窗，返回桌面时释放所有全屏 WebView，避免同时渲染两套画面。
-- Settings 内可切换 `Mint Terminal / Silver Stream`，选择通过本机服务保存并同步到浏览器、悬浮窗和屏保。产品文案与菜单使用英文；真实日志及会话名称保留原文。
+- Settings 内可切换 `Mint Terminal / Silver Stream / White Signal`；白色主题保留深色背景，以不同粗细的白色、银色和灰色流线为主。语言可选 English、简体中文、繁體中文，默认英文。选择通过本机服务保存并同步到浏览器、悬浮窗和屏保；原生菜单在下次打开时更新语言，真实日志及会话名称保留原文。
 
 ## 双屏
 
@@ -23,26 +24,30 @@
 
 ## 屏保与安装
 
-App 内含 `AgentOpsSaver.appex`，安装脚本已向 Launch Services / PluginKit 注册。系统设置中的自定义屏保名称为 **Agent Ops · Continuous Link**。2026-11-05 已通过系统设置选中，启动时间保存为 **5 分钟后**；系统设置中的原生屏保预览已成功加载。锁屏密码与显示器休眠设置未修改。
+App 内含 `AgentOpsSaver.appex`，首次启动向 PluginKit 注册。安装后在系统设置的墙纸 / 屏幕保护程序中确认选择 **Agent Ops · Continuous Link**，并设置空闲启动时间。2026-11-05 的旧安装曾选中五分钟延迟并验证系统预览；自行重新安装后仍需确认选择。屏保与密码认证由 macOS 控制；不替换系统登录界面，不承诺锁屏按键触发后立刻显示动画，显示器关闭时也不会继续显示。锁屏密码与显示器休眠设置未修改。
 
 开发构建与更新：
 
 ```sh
 npm run build:saver
 python3 macos/install.py
+npm run build:dmg
+npm run test:installer
 ```
 
-安装脚本将网页和只读服务复制到 `~/Library/Application Support/Agent Ops/runtime`，并注册 `~/Library/LaunchAgents/local.agentops.observer.plist`。采集器登录后启动，优先级 `nice +10`、低优先级 I/O，只监听 `127.0.0.1:4318`。前端/原生壳更新不会重启未变化的采集服务。旧版 App 和 LaunchAgent 保存到该目录的 `backups/`。
+首次启动将包内运行环境复制到 `~/Library/Application Support/Agent Ops/runtime`，注册 `~/Library/LaunchAgents/local.agentops.observer.plist` 及 `local.agentops.desktop.plist`。采集器登录后启动，优先级 `nice +10`、低优先级 I/O，只监听 `127.0.0.1:4318`。未变化的运行文件不会反复复制或重启；更新先暂存，再替换，启动失败时恢复上一版和服务定义。源日志与用户偏好在更新事务之外。开发安装脚本使用相同启动流程，目标为 `~/Applications`。
 
-App 依赖本机已安装的 Node.js 和此伴随服务；单独把 `.app` 拷到另一台机器不能连上当前机器的日志。本地构建针对 Apple Silicon / macOS 26，使用 Xcode、Swift 编译和 ad-hoc 签名，不是公证过的通用发行包。
+DMG 针对 Apple Silicon / macOS 26+，使用 Xcode、Swift 编译和 ad-hoc 签名，尚未经过 Apple 公证。包内 Node 保留 Node.js Foundation 签名与许可证。安装到另一台兼容 Mac 后读取那台机器当前用户的本地日志；安装包不包含开发机器的日志、设置或认证文件。
+
+卸载：`python3 macos/uninstall.py` 停止本用户的两个后台服务，注销已安装屏保扩展，将 App、服务定义及运行文件移入废纸篓。主题/语言文件、窗口偏好和原始 Codex / Claude 日志保留。
 
 现代屏保扩展宿主的少量类声明未包含在公开 SDK 中，集中隔离在 `ScreenSaverBridge.h`。此兼容方式参考维护者的 [macOS 屏保扩展文档](https://aerialscreensaver.github.io/developers/appex-distribution/)，未来系统升级可能需要适配；没有关闭 Gatekeeper 或修改锁屏认证设置。
 
 ## 本次验证状态
 
 - Web/Swift 生产构建与签名检查通过，扩展注册可查询。
-- 12 项 JavaScript 测试通过；Swift 显示器布局测试通过。
-- 浏览器验证了全景、左右裁切、不同宽度显示器、4K 画布、暂停、单屏布局回归、两套主题及环内持续运动。
+- 14 项 JavaScript 测试通过；Swift 显示器布局测试通过。新增后台原生偏好测试验证默认置顶、取消/恢复后的窗口层级、重载持久化状态及中英文菜单，不显示窗口。
+- 浏览器验证了全景、左右裁切、不同宽度显示器、4K 画布、暂停、单屏布局回归、三套主题及环内持续运动；新增白色主题和三种语言在独立偏好文件的后台预览中验证。
 - 原生悬浮窗拖动、缩放、重开后的窗口尺寸恢复，以及浏览器与 App 的主题同步均已验证。
 - 在实际双屏上验证了左屏 1920×1080、右屏 3840×2160 的原生全屏裁切；`Esc` 返回悬浮窗后，系统日志确认两个预览渲染器都已释放。重新激活 App 不会再把正在显示的全屏预览切回悬浮窗。
 - 系统屏保扩展已选中并在系统设置中真实运行；尚未主动触发带密码认证的完整锁屏/解锁周期，因此该生命周期的端到端验证不在本次结论内。

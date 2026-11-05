@@ -3,8 +3,10 @@ import { ArrowUpRight } from '@phosphor-icons/react';
 import { bytes, count, labels, time } from './format.js';
 import { hash } from './scene/geometry.js';
 import { themeFor } from './themes.js';
+import { useTranslation } from './i18n/useTranslation.js';
 
 function EventGraph({ events, theme }) {
+  const t = useTranslation();
   const canvas = useRef(null);
   useEffect(() => {
     const node = canvas.current;
@@ -26,51 +28,52 @@ function EventGraph({ events, theme }) {
         ctx.fillRect(x, y, 1.5, 1.5);
       });
       ctx.globalAlpha = 1;
-      ctx.fillStyle = '#6b8580'; ctx.font = '8px "IBM Plex Mono", monospace';
-      if (!recent.length) ctx.fillText('WAITING FOR LOCAL RECORDS', 14, height / 2);
+      ctx.fillStyle = theme === 'white' ? palette.muted : '#6b8580'; ctx.font = '8px "IBM Plex Mono", monospace';
+      if (!recent.length) ctx.fillText(t("WAITING FOR LOCAL RECORDS"), 14, height / 2);
     };
     paint(); const observer = new ResizeObserver(paint); observer.observe(node);
     return () => observer.disconnect();
-  }, [events, theme]);
-  return <canvas ref={canvas} role="img" aria-label="Recent event distribution; dim points indicate history" />;
+  }, [events, theme, t]);
+  return <canvas ref={canvas} role="img" aria-label={t("Recent event distribution; dim points indicate history")} />;
 }
 
 export function Panels({ events, data, selected, onInspect, onConsole, onSession, theme }) {
+  const t = useTranslation();
   const recent = events.slice(-9).reverse();
   const current = selected || events.at(-1);
   const sessions = data?.sessions.slice(0, 10) || [];
   const maxBytes = Math.max(1, ...sessions.map(session => session.bytes));
-  return <section className="panel-grid" aria-label="Monitoring panels">
+  return <section className="panel-grid" aria-label={t("Monitoring panels")}>
     <div className="panel event-panel">
-      <div className="panel-heading"><h2>TASK FEED <span>EVENT LOG</span></h2><button onClick={onConsole} title="Inspect all events">{count(data?.resource.bufferedEvents)} BUFFERED <ArrowUpRight /></button></div>
+      <div className="panel-heading"><h2>{t("TASK FEED")} <span>{t("EVENT LOG")}</span></h2><button onClick={onConsole} title={t("Inspect all events")}>{count(data?.resource.bufferedEvents)} {t("BUFFERED")} <ArrowUpRight /></button></div>
       <div className="event-lines">
-        {!recent.length && <p className="empty">Waiting for local session records…</p>}
+        {!recent.length && <p className="empty">{t("Waiting for local session records…")}</p>}
         {recent.map(event => <button className="event-line" key={event.id} onClick={() => onInspect(event)}>
-          <time>{time(event.timestamp)}</time><b className={event.provider}>{labels[event.kind]}</b><span>{event.tool || event.preview.replace(/\s+/g, ' ') || event.kind}</span>
+          <time>{time(event.timestamp)}</time><b className={event.provider}>{t(labels[event.kind])}</b><span>{event.tool || event.preview.replace(/\s+/g, ' ') || event.kind}</span>
         </button>)}
       </div>
-      <div className="panel-note">{recent.every(event => event.historical) ? 'RECENT HISTORY' : 'LIVE RECORDS'} <span>CLICK TO INSPECT</span></div>
+      <div className="panel-note">{recent.every(event => event.historical) ? t("RECENT HISTORY") : t("LIVE RECORDS")} <span>{t("CLICK TO INSPECT")}</span></div>
     </div>
     <div className="panel graph-panel">
-      <div className="panel-heading"><h2>OBSERVED / <span>PARTICLE EVENT FIELD</span></h2><span>{events.length} PTS</span></div>
+      <div className="panel-heading"><h2>{t("OBSERVED /")} <span>{t("PARTICLE EVENT FIELD")}</span></h2><span>{events.length} {t("PTS")}</span></div>
       <EventGraph events={events} theme={theme} />
-      <div className="graph-legend"><span><i className="legend-dot codex" /> CODEX</span><span><i className="legend-dot claude" /> CLAUDE</span><span>LAST {Math.min(180, events.length)} EVENTS</span></div>
+      <div className="graph-legend"><span><i className="legend-dot codex" /> CODEX</span><span><i className="legend-dot claude" /> CLAUDE</span><span>{t('LAST {count} EVENTS', { count: Math.min(180, events.length) })}</span></div>
     </div>
     <div className="panel code-panel">
-      <div className="panel-heading"><h2>WORKSPACE <span>RUNTIME CORE</span></h2><span>{current?.provider.toUpperCase() || '—'}</span></div>
-      <button className="code-preview" onClick={() => current && onInspect(current)} disabled={!current} title="Inspect full input and output">
-        {(current?.preview || 'Awaiting a local session…').split('\n').slice(0, 9).map((line, index) => <div key={index}><em>{String(index + 1).padStart(3, '0')}</em><span>{line || ' '}</span></div>)}
+      <div className="panel-heading"><h2>{t("WORKSPACE")} <span>{t("RUNTIME CORE")}</span></h2><span>{current?.provider.toUpperCase() || '—'}</span></div>
+      <button className="code-preview" onClick={() => current && onInspect(current)} disabled={!current} title={t("Inspect full input and output")}>
+        {(current?.preview || t("Awaiting a local session…")).split('\n').slice(0, 9).map((line, index) => <div key={index}><em>{String(index + 1).padStart(3, '0')}</em><span>{line || ' '}</span></div>)}
       </button>
-      <div className="panel-note"><span>{current ? `${labels[current.kind]} / ${bytes(current.bytes)}` : 'NO RECORD'}</span><span>READ ONLY <ArrowUpRight /></span></div>
+      <div className="panel-note"><span>{current ? `${t(labels[current.kind])} / ${bytes(current.bytes)}` : t("NO RECORD")}</span><span>{t("READ ONLY")} <ArrowUpRight /></span></div>
     </div>
     <div className="panel orchestration-panel">
-      <div className="panel-heading"><h2>AGENTS / <span>SESSION ACTIVITY</span></h2><span>{count(data?.totalSessions)} LOGS</span></div>
+      <div className="panel-heading"><h2>{t("AGENTS /")} <span>{t("SESSION ACTIVITY")}</span></h2><span>{count(data?.totalSessions)} {t("LOGS")}</span></div>
       <div className="session-bars">
         {sessions.map((session, index) => <button key={session.id} onClick={() => onSession(session)} title={`${session.title} · ${session.provider}`}>
           <em>{String(index + 1).padStart(2, '0')}</em><span>{session.title.slice(0, 16)}<i style={{ width: `${Math.max(2, session.bytes / maxBytes * 100)}%` }} /></span>
         </button>)}
       </div>
-      <div className="panel-note">OBSERVED BYTES <span>LOCAL SESSION LOGS</span></div>
+      <div className="panel-note">{t("OBSERVED BYTES")} <span>{t("LOCAL SESSION LOGS")}</span></div>
     </div>
   </section>;
 }

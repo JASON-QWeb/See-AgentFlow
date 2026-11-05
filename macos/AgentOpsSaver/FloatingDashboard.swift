@@ -4,7 +4,8 @@ import OSLog
 final class FloatingDashboard: NSObject, NSWindowDelegate {
     let window: NSPanel
     private var web: SaverWebView?
-    private var wantsVisible = true
+    private let preferences: DesktopPreferences
+    private var wantsVisible = false
     private var locked = false
     private var saverActive = false
     private var sleeping = false
@@ -13,7 +14,8 @@ final class FloatingDashboard: NSObject, NSWindowDelegate {
     private var workspace: [NSObjectProtocol] = []
     private let logger = Logger(subsystem: "local.agentops.desktop", category: "lifecycle")
 
-    override init() {
+    init(preferences: DesktopPreferences = DesktopPreferences()) {
+        self.preferences = preferences
         window = NSPanel(contentRect: NSRect(x: 80, y: 80, width: 1120, height: 760),
                          styleMask: [.titled, .closable, .resizable, .miniaturizable, .fullSizeContentView], backing: .buffered, defer: false)
         super.init()
@@ -30,7 +32,7 @@ final class FloatingDashboard: NSObject, NSWindowDelegate {
         window.addTitlebarAccessoryViewController(chrome)
         window.backgroundColor = .black; window.isReleasedWhenClosed = false
         window.minSize = NSSize(width: 560, height: 400)
-        window.level = .floating; window.isFloatingPanel = true; window.hidesOnDeactivate = false
+        applyWindowLevel(); window.hidesOnDeactivate = false
         window.isMovableByWindowBackground = true
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.delegate = self
@@ -67,6 +69,14 @@ final class FloatingDashboard: NSObject, NSWindowDelegate {
     }
 
     func setPreviewActive(_ value: Bool) { previewActive = value; refresh() }
+
+    func setAlwaysOnTop(_ value: Bool) {
+        preferences.alwaysOnTop = value; applyWindowLevel()
+    }
+    private func applyWindowLevel() {
+        window.isFloatingPanel = preferences.alwaysOnTop
+        window.level = preferences.alwaysOnTop ? .floating : .normal
+    }
 
     private func refresh() {
         // didstop can arrive before unlock; retain lock state independently.

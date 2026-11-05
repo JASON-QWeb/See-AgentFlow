@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowDown, Check, Copy, MagnifyingGlass, X } from '@phosphor-icons/react';
 import { bytes, labels, time } from './format.js';
+import { useTranslation } from './i18n/useTranslation.js';
 
 export function Console({ open, onClose, events, data, initialEvent, initialSession }) {
+  const t = useTranslation();
   const dialog = useRef(null);
   const [query, setQuery] = useState('');
   const [provider, setProvider] = useState('all');
@@ -42,34 +44,34 @@ export function Console({ open, onClose, events, data, initialEvent, initialSess
   const session = sessionOptions.find(session => session.id === (selected?.sessionId || sessionId));
   const copy = async () => {
     try { await navigator.clipboard.writeText(raw ? detail.raw : detail.text); setCopied(true); setTimeout(() => setCopied(false), 1800); }
-    catch { setError('Copy failed. Select the text and copy it directly.'); }
+    catch { setError(t("Copy failed. Select the text and copy it directly.")); }
   };
   return <dialog ref={dialog} className="console-dialog" onCancel={onClose} onClick={event => { if (event.target === dialog.current) onClose(); }}>
     <div className="console-shell">
-      <header className="dialog-heading"><div><span className="eyebrow">LOCAL / READ ONLY</span><h2>EVENT CONSOLE </h2></div><button className="icon-button" onClick={onClose} aria-label="Close event console"><X size={20} /></button></header>
+      <header className="dialog-heading"><div><span className="eyebrow">{t("LOCAL / READ ONLY")}</span><h2>{t("EVENT CONSOLE")} </h2></div><button className="icon-button" onClick={onClose} aria-label={t("Close event console")}><X size={20} /></button></header>
       <div className="console-toolbar">
-        <label className="search"><MagnifyingGlass size={15} /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search recent events…" aria-label="Search events" /></label>
-        <select aria-label="Filter source" value={provider} onChange={event => setProvider(event.target.value)}><option value="all">ALL SOURCES</option><option value="codex">CODEX</option><option value="claude">CLAUDE</option></select>
-        <select aria-label="Filter event type" value={kind} onChange={event => setKind(event.target.value)}><option value="all">ALL EVENTS</option>{Object.entries(labels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
-        <select aria-label="Filter session" value={sessionId} onChange={event => setSessionId(event.target.value)}><option value="all">ALL SESSIONS</option>{sessionOptions.map(session => <option key={session.id} value={session.id}>{session.provider} / {session.title} / {session.shortId}</option>)}</select>
+        <label className="search"><MagnifyingGlass size={15} /><input value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search recent events…")} aria-label={t("Search events")} /></label>
+        <select aria-label={t("Filter source")} value={provider} onChange={event => setProvider(event.target.value)}><option value="all">{t("ALL SOURCES")}</option><option value="codex">CODEX</option><option value="claude">CLAUDE</option></select>
+        <select aria-label={t("Filter event type")} value={kind} onChange={event => setKind(event.target.value)}><option value="all">{t("ALL EVENTS")}</option>{Object.entries(labels).map(([key, label]) => <option key={key} value={key}>{t(label)}</option>)}</select>
+        <select aria-label={t("Filter session")} value={sessionId} onChange={event => setSessionId(event.target.value)}><option value="all">{t("ALL SESSIONS")}</option>{sessionOptions.map(session => <option key={session.id} value={session.id}>{session.provider} / {session.title} / {session.shortId}</option>)}</select>
       </div>
       <div className="console-body">
-        <div className="console-events"><div className="list-heading">{filtered.length} RECORDS <span>RECENT BUFFER</span></div>
+        <div className="console-events"><div className="list-heading">{filtered.length} {t("RECORDS")} <span>{t("RECENT BUFFER")}</span></div>
           {filtered.slice(0, 400).map(event => <button key={event.id} className={`console-event ${event.id === selected?.id ? 'selected' : ''}`} onClick={() => setSelected(event)}>
-            <div><b className={event.provider}>{event.provider.toUpperCase()}</b><span>{labels[event.kind]}</span><time>{time(event.timestamp)}</time></div>
-            <p>{event.tool ? `${event.tool} · ` : ''}{event.preview.slice(0, 180) || '(empty record)'}</p>
-            <small>{event.historical ? 'HISTORY' : 'CAPTURED LIVE'} / {bytes(event.bytes)}</small>
+            <div><b className={event.provider}>{event.provider.toUpperCase()}</b><span>{t(labels[event.kind])}</span><time>{time(event.timestamp)}</time></div>
+            <p>{event.tool ? `${event.tool} · ` : ''}{event.preview.slice(0, 180) || t("(empty record)")}</p>
+            <small>{event.historical ? t("HISTORY") : t("CAPTURED LIVE")} / {bytes(event.bytes)}</small>
           </button>)}
-          {!filtered.length && <p className="empty">No matching records. New events appear automatically.</p>}
+          {!filtered.length && <p className="empty">{t("No matching records. New events appear automatically.")}</p>}
         </div>
         <div className="console-detail">
           {selected ? <>
-            <div className="detail-heading"><div><b>{selected.tool || labels[selected.kind]}</b><span>{session?.title || selected.sessionId}</span></div><div className="detail-actions"><button onClick={() => setRaw(!raw)} disabled={!detail}>{raw ? 'TEXT' : 'RAW JSON'}</button><button onClick={copy} disabled={!detail} aria-label="Copy full content">{copied ? <Check size={16} /> : <Copy size={16} />}</button><a href={`/api/session/${selected.sessionId}/raw`} title="Download complete original session log" aria-label="Download complete session log"><ArrowDown size={16} /></a></div></div>
-            {error ? <p className="error">{error}</p> : detail ? <><pre className="full-content">{raw ? detail.raw : detail.text}</pre>{detail.truncated && <p className="warning">Record exceeds 8 MB. Download the original session log for the full content.</p>}</> : <p className="empty">Reading the original record…</p>}
-          </> : <div className="detail-empty"><span>SELECT A RECORD</span><h3>Every input. Every response.</h3><p>Select an event to inspect its full content and raw JSON.<br />Download the complete original log for this session.</p>{sessionId !== 'all' && <a className="text-button" href={`/api/session/${sessionId}/raw`}>Download session log <ArrowDown /></a>}</div>}
+            <div className="detail-heading"><div><b>{selected.tool || t(labels[selected.kind])}</b><span>{session?.title || selected.sessionId}</span></div><div className="detail-actions"><button onClick={() => setRaw(!raw)} disabled={!detail}>{raw ? t("TEXT") : t("RAW JSON")}</button><button onClick={copy} disabled={!detail} aria-label={t("Copy full content")}>{copied ? <Check size={16} /> : <Copy size={16} />}</button><a href={`/api/session/${selected.sessionId}/raw`} title={t("Download complete original session log")} aria-label={t("Download complete session log")}><ArrowDown size={16} /></a></div></div>
+            {error ? <p className="error">{error}</p> : detail ? <><pre className="full-content">{raw ? detail.raw : detail.text}</pre>{detail.truncated && <p className="warning">{t("Record exceeds 8 MB. Download the original session log for the full content.")}</p>}</> : <p className="empty">{t("Reading the original record…")}</p>}
+          </> : <div className="detail-empty"><span>{t("SELECT A RECORD")}</span><h3>{t("Every input. Every response.")}</h3><p>{t("Select an event to inspect its full content and raw JSON.")}<br />{t("Download the complete original log for this session.")}</p>{sessionId !== 'all' && <a className="text-button" href={`/api/session/${sessionId}/raw`}>{t("Download session log")} <ArrowDown /></a>}</div>}
         </div>
       </div>
-      <footer className="console-footer">LOCAL ONLY · SEARCH CACHED PREVIEWS · DOWNLOAD ORIGINAL LOGS FOR FULL HISTORY <span>ESC TO CLOSE</span></footer>
+      <footer className="console-footer">{t("LOCAL ONLY · SEARCH CACHED PREVIEWS · DOWNLOAD ORIGINAL LOGS FOR FULL HISTORY")} <span>{t("ESC TO CLOSE")}</span></footer>
     </div>
   </dialog>;
 }
