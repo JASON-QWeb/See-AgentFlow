@@ -1,5 +1,10 @@
 import { basename } from 'node:path';
 
+const PREVIEW_LENGTH = 700;
+
+// V8 slices share their parent's storage. Copying keeps a cached preview from pinning a whole record in memory.
+export const previewOf = text => text.length > PREVIEW_LENGTH ? JSON.parse(JSON.stringify(text.slice(0, PREVIEW_LENGTH))) : text;
+
 export function textOf(value) {
   if (typeof value === 'string') return value;
   if (Array.isArray(value)) return value.map(textOf).filter(Boolean).join('\n');

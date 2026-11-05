@@ -1,5 +1,5 @@
 import { open } from 'node:fs/promises';
-import { normalize } from './normalize.mjs';
+import { normalize, previewOf } from './normalize.mjs';
 
 async function readHistory(file, session) {
   const handle = await open(file.path, 'r').catch(() => null);
@@ -16,7 +16,7 @@ async function readHistory(file, session) {
         const items = normalize(JSON.parse(line), session);
         items.forEach((item, index) => events.push({ id: `replay:${file.id}:${offset}:${row}:${index}`,
           provider: file.provider, sessionId: file.id, kind: item.kind, timestamp: item.timestamp,
-          preview: item.text.slice(0, 700), historical: true, replay: true }));
+          preview: previewOf(item.text), historical: true, replay: true }));
       } catch { /* The tail may contain an incomplete record during an active write. */ }
     });
     return events.slice(-64);

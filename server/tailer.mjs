@@ -3,10 +3,12 @@ import { watch } from 'node:fs';
 import { join, relative, basename } from 'node:path';
 import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { normalize } from './normalize.mjs';
+import { normalize, previewOf } from './normalize.mjs';
 
 const CHUNK = 128 * 1024;
 const MAX_LINE = 8 * 1024 * 1024;
+const MAX_SAMPLES = 12000;
+const EMPTY = Buffer.alloc(0);
 const idFor = path => createHash('sha256').update(path).digest('hex').slice(0, 16);
 
 export class Collector extends EventEmitter {
@@ -86,7 +88,7 @@ export class Collector extends EventEmitter {
       const session = { id, shortId, provider, title: shortId, model: null, cwd: null,
         lastSeen: info.mtimeMs, observed: 0, bytes: 0, tokens: null, state: 'idle' };
       file = { path, id, provider, generation: 0, inode: info.ino, mtime: info.mtimeMs, offset: initial ? info.size : 0,
-        lineStart: initial ? info.size : 0, pending: Buffer.alloc(0), oversized: false };
+        lineStart: initial ? info.size : 0, pending: EMPTY, oversized: false };
       this.files.set(path, file);
       this.sessions.set(id, session);
     }
@@ -167,7 +169,7 @@ export class Collector extends EventEmitter {
       const info = await handle.stat();
       if (info.ino !== file.inode || info.size < file.offset) {
         file.generation++;
-        Object.assign(file, { inode: info.ino, offset: 0, lineStart: 0, pending: Buffer.alloc(0), oversized: false });
+        Object.assign(file, { inode: info.ino, offset: 0, lineStart: 0, pending: EMPTY, oversized: false });
       }
       const length = Math.min(info.size - file.offset, historical ? this.historyBytes : CHUNK);
       if (length <= 0) return;
@@ -184,8 +186,7 @@ export class Collector extends EventEmitter {
 
   consume(file, chunk, historical) {
     let start = 0;
-    for (let i = 0; i < chunk.length; i++) {
-      if (chunk[i] !== 10) continue;
+    for (let i = chunk.indexOf(10); i !== -1; i = chunk.indexOf(10, start)) {
       const fragment = chunk.subarray(start, i);
       const length = file.pending.length + fragment.length;
       if (!file.skipFirst) {
@@ -194,13 +195,13 @@ export class Collector extends EventEmitter {
       }
       file.skipFirst = false;
       file.oversized = false;
-      file.pending = Buffer.alloc(0);
+      file.pending = EMPTY;
       file.lineStart = file.offset - chunk.length + i + 1;
       start = i + 1;
     }
     if (start < chunk.length && !file.oversized) {
       if (file.pending.length + chunk.length - start > MAX_LINE) {
-        file.pending = Buffer.alloc(0);
+        file.pending = EMPTY;
         file.oversized = true;
       } else file.pending = Buffer.concat([file.pending, chunk.subarray(start)]);
     }
@@ -224,7 +225,7 @@ export class Collector extends EventEmitter {
   addEvent(file, item, location, historical) {
     const now = Date.now();
     const bytes = location.index === 0 || location.index === -1 ? location.length : 0;
-    const entry = { ...item, text: undefined, preview: item.text.slice(0, 700), characters: item.text.length,
+    const entry = { ...item, text: undefined, preview: previewOf(item.text), characters: item.text.length,
       id: `${file.id}:${file.inode}:${file.generation}:${location.offset}:${location.index}`, sessionId: file.id, provider: file.provider,
       receivedAt: now, historical, bytes, source: { ...location, inode: file.inode, generation: file.generation } };
     this.events.push(entry);
@@ -241,7 +242,8 @@ export class Collector extends EventEmitter {
       if (item.kind === 'output') this.counters.output++;
       if (item.kind.startsWith('tool_')) this.counters.tools++;
       this.samples.push({ at: now, bytes, provider: file.provider, kind: item.kind });
-      this.samples = this.samples.filter(sample => now - sample.at < 60_000).slice(-12000);
+      // Age is pruned on the sweep timer; rescanning here would make a burst quadratic.
+      if (this.samples.length > MAX_SAMPLES * 1.25) this.samples = this.samples.slice(-MAX_SAMPLES);
     }
     this.emit('event', entry);
   }

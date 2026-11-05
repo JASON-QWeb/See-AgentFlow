@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, appendFile, mkdir, rename, rm, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { setFlagsFromString } from 'node:v8';
+import { runInNewContext } from 'node:vm';
 import { Collector } from '../server/tailer.mjs';
 import { realRecords, until } from './real-records.mjs';
 
@@ -119,4 +121,25 @@ test('idle retention expires previews while preserving counters, source logs and
   assert.equal(collector.events.length, 0);
   collector.close();
   assert.equal(collector.fileWatchers.size + collector.files.size + collector.sessions.size, 0);
+});
+
+test('cached previews do not pin the full text of large records in memory', t => {
+  setFlagsFromString('--expose-gc');
+  const collect = runInNewContext('gc');
+  const heap = () => { collect(); collect(); return process.memoryUsage().heapUsed; };
+  const collector = new Collector([], { maxEvents: 200 });
+  t.after(() => collector.close());
+  const file = { id: 'memory-test', provider: 'codex', inode: 1, generation: 0 };
+  collector.sessions.set(file.id, { observed: 0, bytes: 0, lastSeen: 0 });
+  const before = heap();
+  for (let index = 0; index < 200; index++) {
+    // JSON.parse yields the same flat string shape as a real record.
+    const text = JSON.parse(JSON.stringify(`${index} `.padEnd(256 * 1024, 'x')));
+    collector.addEvent(file, { kind: 'output', text, timestamp: null }, { offset: index, length: text.length, index: 0 }, false);
+  }
+  const retained = heap() - before;
+  assert.equal(collector.events.length, 200);
+  assert.equal(collector.events[0].preview.length, 700);
+  assert.equal(collector.events[0].characters, 256 * 1024);
+  assert.ok(retained < 8 * 1024 * 1024, `retained ${(retained / 1048576).toFixed(1)} MiB for 200 previews`);
 });
