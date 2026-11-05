@@ -41,6 +41,8 @@ DMG 针对 Apple Silicon / macOS 26+，使用 Xcode、Swift 编译和 ad-hoc 签
 
 卸载：`python3 macos/uninstall.py` 停止本用户的两个后台服务，注销已安装屏保扩展，将 App、服务定义及运行文件移入废纸篓。主题/语言文件、窗口偏好和原始 Codex / Claude 日志保留。
 
+开发安装的旧版本以 ZIP 保存，避免系统把备份当作另一个 App。DMG 校验成功或开发安装完成后，会注销并移除未安装的构建副本；保留 DMG 及正式安装版。`npm run build:saver` 单独运行时仍会生成供开发检查的 App。
+
 现代屏保扩展宿主的少量类声明未包含在公开 SDK 中，集中隔离在 `ScreenSaverBridge.h`。此兼容方式参考维护者的 [macOS 屏保扩展文档](https://aerialscreensaver.github.io/developers/appex-distribution/)，未来系统升级可能需要适配；没有关闭 Gatekeeper 或修改锁屏认证设置。
 
 ## 本次验证状态

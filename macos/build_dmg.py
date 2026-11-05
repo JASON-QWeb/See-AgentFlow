@@ -38,6 +38,11 @@ def main():
     subprocess.run(['hdiutil', 'verify', str(destination)], check=True)
     digest = hashlib.file_digest(destination.open('rb'), 'sha256').hexdigest()
     destination.with_suffix('.dmg.sha256').write_text(f'{digest}  {destination.name}\n')
+    # Keep the verified image, not a second launchable development App in Spotlight.
+    registry = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister'
+    subprocess.run(['pluginkit', '-r', str(APP / 'Contents/PlugIns/AgentOpsSaver.appex')], capture_output=True)
+    subprocess.run([registry, '-u', str(APP)], check=True, capture_output=True)
+    shutil.rmtree(APP)
     print(destination)
 
 

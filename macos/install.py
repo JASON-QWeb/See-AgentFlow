@@ -17,7 +17,9 @@ def main():
     backup = BASE / 'backups' / datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
     if APP.exists():
         backup.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(APP, backup / APP.name)
+        # Raw .app backups are indexed as additional launchable applications by macOS.
+        subprocess.run(['ditto', '-c', '-k', '--sequesterRsrc', '--keepParent', str(APP),
+                        str(backup / (APP.name + '.zip'))], check=True)
     APP.parent.mkdir(parents=True, exist_ok=True)
     stage = APP.with_name(APP.name + '.staging')
     if stage.exists(): shutil.rmtree(stage)
@@ -29,6 +31,8 @@ def main():
     subprocess.run(['pluginkit', '-r', str(source / 'Contents/PlugIns/AgentOpsSaver.appex')], capture_output=True)
     resources = APP / 'Contents/Resources'
     subprocess.run([str(resources / 'runtime/node'), str(resources / 'setup.mjs')], check=True)
+    subprocess.run([registry, '-u', str(source)], check=True, capture_output=True)
+    shutil.rmtree(source)
     print(f'Installed: {APP}')
 
 
