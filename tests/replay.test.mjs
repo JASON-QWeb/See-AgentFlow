@@ -1,0 +1,30 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { Collector } from '../server/tailer.mjs';
+import { createReplayReader } from '../server/replay.mjs';
+import { realRecords } from './real-records.mjs';
+
+test('history replay reads real old logs without creating live events or modifying sources', async t => {
+  const records = (await realRecords('codex')).slice(-4);
+  if (!records.length) return t.skip('Local transcripts unavailable');
+  const dir = await mkdtemp(join(tmpdir(), 'agent-ops-replay-'));
+  const path = join(dir, 'history.jsonl');
+  const original = records.map(record => record.line).join('\n') + '\n';
+  await writeFile(path, original);
+  const collector = new Collector([{ provider: 'codex', path: dir }], { historyFiles: 0 });
+  await collector.start();
+  t.after(async () => { collector.close(); await rm(dir, { recursive: true, force: true }); });
+  const before = { ...collector.counters };
+  const readReplay = createReplayReader(collector);
+  const replay = await readReplay('codex');
+  const previews = records.flatMap(record => record.items.map(item => item.text.slice(0, 700)));
+  assert.ok(replay.events.length > 0);
+  assert.ok(replay.events.every(event => event.replay && event.historical && previews.includes(event.preview)));
+  assert.equal((await readReplay('claude')).events.length, 0);
+  assert.equal(collector.events.length, 0);
+  assert.deepEqual(collector.counters, before);
+  assert.equal(await readFile(path, 'utf8'), original);
+});

@@ -1,0 +1,46 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { once } from 'node:events';
+import { request } from 'node:http';
+import { Collector } from '../server/tailer.mjs';
+import { createDashboardServer } from '../server/http.mjs';
+import { realRecords } from './real-records.mjs';
+
+test('loopback API returns real history and exact raw content, rejecting foreign origins and writes', async t => {
+  const records = await realRecords('codex');
+  if (!records.length) return t.skip('Local transcripts unavailable');
+  const dir = await mkdtemp(join(tmpdir(), 'agent-ops-http-'));
+  const original = records.slice(-4).map(item => item.line).join('\n') + '\n';
+  await writeFile(join(dir, 'session.jsonl'), original);
+  const collector = new Collector([{ provider: 'codex', path: dir }]);
+  await collector.start();
+  const server = createDashboardServer(collector);
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  t.after(async () => { collector.close(); server.close(); server.closeAllConnections(); await rm(dir, { recursive: true, force: true }); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const snapshot = await fetch(base + '/api/snapshot').then(res => res.json());
+  assert.equal(snapshot.totalSessions, 1);
+  assert.equal(snapshot.rate, 0);
+  assert.ok(snapshot.events.length > 0);
+  const event = snapshot.events.at(-1);
+  const detail = await fetch(base + '/api/event/' + encodeURIComponent(event.id)).then(res => res.json());
+  assert.ok(original.includes(detail.raw));
+  const raw = await fetch(base + '/api/session/' + event.sessionId + '/raw').then(res => res.text());
+  assert.equal(raw, original);
+  assert.equal((await fetch(base + '/api/snapshot', { headers: { Origin: 'https://untrusted.example' } })).status, 403);
+  const foreignHostStatus = await new Promise(resolve => {
+    const req = request(base + '/api/snapshot', { headers: { Host: 'untrusted.example' } }, res => { res.resume(); resolve(res.statusCode); });
+    req.end();
+  });
+  assert.equal(foreignHostStatus, 403);
+  assert.equal((await fetch(base + '/api/snapshot', { method: 'POST' })).status, 405);
+  assert.equal((await fetch(base + '/api/session/unknown/raw')).status, 404);
+  const controller = new AbortController();
+  const stream = await fetch(base + '/api/stream', { signal: controller.signal });
+  const { value } = await stream.body.getReader().read();
+  assert.match(new TextDecoder().decode(value), /^event: snapshot/);
+  controller.abort();
+});
