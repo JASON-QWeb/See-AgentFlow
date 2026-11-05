@@ -3,6 +3,7 @@ import { packetMesh, routeMesh, ringMesh } from './mobiusGeometry.js';
 import { themeFor, rgb, hexRGB } from '../themes.js';
 import { innerMeshes, innerVertex, INNER_PACKETS, OUTER_PACKETS } from './innerFlow.js';
 import { translate } from '../i18n/catalog.js';
+import { HIDDEN_RELEASE_DELAY } from '../eventRetention.js';
 
 export class MobiusRenderer {
   constructor(canvas, telemetry, layout) {
@@ -15,19 +16,26 @@ export class MobiusRenderer {
     this.reduced = matchMedia('(prefers-reduced-motion: reduce)');
     this.frameCount = 0; this.sampleAt = performance.now(); this.atlasAt = 0;
     this.onVisibility = () => {
-      cancelAnimationFrame(this.raf); this.nextFrame = null; this.sampleAt = performance.now(); this.frameCount = 0;
-      if (!document.hidden) this.animate();
+      cancelAnimationFrame(this.raf); clearTimeout(this.releaseTimer);
+      this.nextFrame = null; this.sampleAt = performance.now(); this.frameCount = 0;
+      if (document.hidden) this.releaseTimer = setTimeout(() => this.releaseResources(), HIDDEN_RELEASE_DELAY);
+      else {
+        if (this.released && !this.gl.isContextLost()) this.initialize();
+        this.animate();
+      }
     };
-    this.onLost = event => { event.preventDefault(); cancelAnimationFrame(this.raf); };
-    this.onRestored = () => { this.initialize(); this.animate(); };
+    this.onLost = event => { event.preventDefault(); cancelAnimationFrame(this.raf); this.released = true; };
+    this.onRestored = () => { if (!this.destroyed && !document.hidden) { this.initialize(); this.animate(); } };
     document.addEventListener('visibilitychange', this.onVisibility);
     canvas.addEventListener('webglcontextlost', this.onLost);
     canvas.addEventListener('webglcontextrestored', this.onRestored);
-    this.initialize(); this.animate();
-    document.fonts.ready.then(() => { this.atlasAt = 0; this.atlasRevision = null; });
+    this.initialize(); this.onVisibility();
+    document.fonts.ready.then(() => { if (!this.destroyed) { this.atlasAt = 0; this.atlasRevision = null; } });
   }
 
   initialize() {
+    this.released = false; this.atlasAt = 0; this.atlasRevision = null;
+    this.textCanvas.width = 3072; this.textCanvas.height = 384;
     const gl = this.gl, { width, height, y, sceneHeight } = this.layout;
     const visibleHeight = Math.max(1, Math.min(height, sceneHeight - y));
     const scale = Math.min(devicePixelRatio || 1, Math.sqrt(8294400 / (width * visibleHeight)));
@@ -182,13 +190,26 @@ export class MobiusRenderer {
     }
   };
 
+  releaseResources() {
+    const gl = this.gl;
+    gl.bindBuffer(gl.ARRAY_BUFFER, null); gl.bindTexture(gl.TEXTURE_2D, null); gl.useProgram(null);
+    for (const name of ['mesh', 'packetBuffer', 'routes', 'innerRoutes', 'innerPackets']) {
+      gl.deleteBuffer(this[name]); this[name] = null;
+    }
+    for (const name of ['ring', 'line', 'packetProgram', 'innerProgram']) {
+      gl.deleteProgram(this[name]); this[name] = null;
+    }
+    gl.deleteTexture(this.texture); this.texture = null;
+    this.canvas.width = 1; this.canvas.height = 1;
+    this.textCanvas.width = 1; this.textCanvas.height = 1; this.released = true;
+    gl.flush();
+  }
+
   destroy() {
-    this.destroyed = true; cancelAnimationFrame(this.raf);
+    this.destroyed = true; cancelAnimationFrame(this.raf); clearTimeout(this.releaseTimer);
     document.removeEventListener('visibilitychange', this.onVisibility);
     this.canvas.removeEventListener('webglcontextlost', this.onLost);
     this.canvas.removeEventListener('webglcontextrestored', this.onRestored);
-    const gl = this.gl;
-    [this.mesh, this.packetBuffer, this.routes, this.innerRoutes, this.innerPackets].forEach(buffer => gl.deleteBuffer(buffer));
-    [this.ring, this.line, this.packetProgram, this.innerProgram].forEach(value => gl.deleteProgram(value)); gl.deleteTexture(this.texture);
+    this.releaseResources();
   }
 }

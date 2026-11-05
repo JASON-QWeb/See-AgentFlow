@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "start": "node server/index.mjs",
-    "test": "node --test tests/collector.test.mjs tests/server.test.mjs tests/replay.test.mjs tests/screensaver.test.mjs tests/preferences.test.mjs tests/i18n.test.mjs",
+    "test": "node --test tests/collector.test.mjs tests/server.test.mjs tests/replay.test.mjs tests/retention.test.mjs tests/screensaver.test.mjs tests/preferences.test.mjs tests/i18n.test.mjs",
     "build": "vite build && node scripts/prepare-sites-build.mjs",
     "build:saver": "npm run build && python3 macos/build.py",
     "build:dmg": "npm run build:saver && python3 macos/build_dmg.py",

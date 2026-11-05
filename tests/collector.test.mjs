@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, appendFile, mkdir, rename, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, appendFile, mkdir, rename, rm, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Collector } from '../server/tailer.mjs';
@@ -97,4 +97,26 @@ test('history stays historical, event buffers stay bounded, previews resolve ful
   await until(() => collector.counters.events === rows.reduce((sum, row) => sum + row.items.length, 0));
   assert.equal(collector.events.length, 4);
   assert.ok((await collector.detail(collector.events.at(-1).id)).raw);
+});
+
+test('idle retention expires previews while preserving counters, source logs and later capture', async t => {
+  if (!codex.length) return t.skip('Local transcripts unavailable');
+  const { path, collector } = await fixture(t, 'codex', { eventMaxAge: 300, sweepInterval: 25 });
+  const sample = codex.find(item => item.items.length === 1);
+  await appendFile(path, sample.line + '\n');
+  await until(() => collector.events.length === 1);
+  const id = collector.events[0].id, before = { ...collector.counters };
+  await until(() => collector.events.length === 0);
+  assert.deepEqual(collector.counters, before);
+  assert.equal(await collector.detail(id), null);
+  assert.equal(collector.sessions.size, 1);
+  assert.equal(await readFile(path, 'utf8'), sample.line + '\n');
+  await appendFile(path, sample.line + '\n');
+  await until(() => collector.counters.events === 2);
+  assert.ok((await collector.detail(collector.events.at(-1).id)).raw);
+  collector.prune(Date.now() + 60_001);
+  assert.equal(collector.samples.length, 0);
+  assert.equal(collector.events.length, 0);
+  collector.close();
+  assert.equal(collector.fileWatchers.size + collector.files.size + collector.sessions.size, 0);
 });

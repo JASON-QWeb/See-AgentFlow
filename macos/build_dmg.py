@@ -33,7 +33,10 @@ def main():
             'Logs: ~/Library/Logs/Agent Ops\n'
             'Source: https://github.com/JASON-QWeb/See-AgentFlow (private)\n'
         )
-        subprocess.run(['hdiutil', 'create', '-ov', '-format', 'UDZO', '-volname', 'See-AgentFlow',
+        # hdiutil's automatic estimate can underallocate the filesystem for the bundled Node binary.
+        payload = sum(path.stat().st_size for path in stage.rglob('*') if path.is_file() and not path.is_symlink())
+        image_mib = max(256, (payload * 5 // 4) // (1024 * 1024) + 64)
+        subprocess.run(['hdiutil', 'create', '-ov', '-size', f'{image_mib}m', '-format', 'UDZO', '-volname', 'See-AgentFlow',
                         '-srcfolder', str(stage), str(destination)], check=True)
     subprocess.run(['hdiutil', 'verify', str(destination)], check=True)
     digest = hashlib.file_digest(destination.open('rb'), 'sha256').hexdigest()

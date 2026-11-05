@@ -10,9 +10,10 @@ const MAX_LINE = 8 * 1024 * 1024;
 const idFor = path => createHash('sha256').update(path).digest('hex').slice(0, 16);
 
 export class Collector extends EventEmitter {
-  constructor(roots, { historyFiles = 16, historyBytes = 192 * 1024, maxEvents = 1600 } = {}) {
+  constructor(roots, { historyFiles = 16, historyBytes = 192 * 1024, maxEvents = 600,
+    eventMaxAge = 10 * 60_000, sweepInterval = 15_000 } = {}) {
     super();
-    Object.assign(this, { roots, historyFiles, historyBytes, maxEvents });
+    Object.assign(this, { roots, historyFiles, historyBytes, maxEvents, eventMaxAge, sweepInterval });
     this.files = new Map();
     this.sessions = new Map();
     this.events = [];
@@ -46,6 +47,8 @@ export class Collector extends EventEmitter {
     // Low-frequency reconciliation covers missed OS notifications and new roots.
     this.rescan = setInterval(() => this.discover().catch(error => this.emit('warning', error.message)), 30_000);
     this.rescan.unref();
+    this.sweeper = setInterval(() => this.prune(), this.sweepInterval);
+    this.sweeper.unref();
     this.emit('ready');
   }
 
@@ -75,7 +78,7 @@ export class Collector extends EventEmitter {
   async register(path, provider, initial = false) {
     let info;
     try { info = await stat(path); } catch { return; }
-    if (!info.isFile()) return;
+    if (this.closed || !info.isFile()) return;
     let file = this.files.get(path);
     if (!file) {
       const id = idFor(path);
@@ -170,6 +173,7 @@ export class Collector extends EventEmitter {
       if (length <= 0) return;
       const buffer = Buffer.allocUnsafe(length);
       const { bytesRead } = await handle.read(buffer, 0, length, file.offset);
+      if (this.closed) return;
       file.offset += bytesRead;
       this.consume(file, buffer.subarray(0, bytesRead), historical);
       if (file.offset < info.size) this.enqueue(file.path);
@@ -261,11 +265,21 @@ export class Collector extends EventEmitter {
     } finally { await handle.close(); }
   }
 
+  prune(now = Date.now()) {
+    // Expire display previews by ingestion time, even with no new traffic.
+    // Source files, session indexes and lifetime counters remain independent of this cache.
+    this.events = this.events.filter(event => now - event.receivedAt < this.eventMaxAge).slice(-this.maxEvents);
+    this.samples = this.samples.filter(sample => now - sample.at < 60_000);
+  }
+
   close() {
     this.closed = true;
     clearTimeout(this.timer);
     clearInterval(this.rescan);
+    clearInterval(this.sweeper);
     this.watchers.forEach(watcher => watcher.close());
     this.fileWatchers.forEach(watcher => watcher.close());
+    this.watchers = []; this.fileWatchers.clear(); this.dirty.clear();
+    this.events = []; this.samples = []; this.files.clear(); this.sessions.clear();
   }
 }

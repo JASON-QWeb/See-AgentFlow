@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Collector } from '../server/tailer.mjs';
 import { createReplayReader } from '../server/replay.mjs';
-import { realRecords } from './real-records.mjs';
+import { realRecords, until } from './real-records.mjs';
 
 test('history replay reads real old logs without creating live events or modifying sources', async t => {
   const records = (await realRecords('codex')).slice(-4);
@@ -18,8 +18,11 @@ test('history replay reads real old logs without creating live events or modifyi
   await collector.start();
   t.after(async () => { collector.close(); await rm(dir, { recursive: true, force: true }); });
   const before = { ...collector.counters };
-  const readReplay = createReplayReader(collector);
-  const replay = await readReplay('codex');
+  const readReplay = createReplayReader(collector, { ttl: 150 });
+  t.after(() => readReplay.close());
+  const [replay, concurrent] = await Promise.all([readReplay('codex'), readReplay('codex')]);
+  assert.equal(replay, concurrent, 'Two display requests share a single read and result');
+  assert.equal(await readReplay('codex'), replay, 'A fresh cache is reused');
   const previews = records.flatMap(record => record.items.map(item => item.text.slice(0, 700)));
   assert.ok(replay.events.length > 0);
   assert.ok(replay.events.every(event => event.replay && event.historical && previews.includes(event.preview)));
@@ -27,4 +30,8 @@ test('history replay reads real old logs without creating live events or modifyi
   assert.equal(collector.events.length, 0);
   assert.deepEqual(collector.counters, before);
   assert.equal(await readFile(path, 'utf8'), original);
+  await until(async () => (await readReplay('codex')) !== replay);
+  assert.deepEqual(collector.counters, before, 'Refreshing replay does not change live counters');
+  readReplay.close();
+  await assert.rejects(readReplay('codex'), /closed/);
 });

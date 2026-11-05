@@ -1,6 +1,7 @@
 import { bandPath, bezier, hash, rim, traceRim } from './geometry.js';
 import { themeFor } from '../themes.js';
 import { translate } from '../i18n/catalog.js';
+import { HIDDEN_RELEASE_DELAY } from '../eventRetention.js';
 
 export class DispatchScene {
   constructor(canvas, telemetry) {
@@ -12,6 +13,7 @@ export class DispatchScene {
     this.backdrop = document.createElement('canvas');
     this.atlas = document.createElement('canvas');
     this.particles = [];
+    this.head = [0, 0]; this.tail = [0, 0];
     this.phase = 0;
     this.energy = 0;
     this.ambientSequence = 0;
@@ -25,15 +27,20 @@ export class DispatchScene {
     this.observer = new ResizeObserver(this.resize);
     this.observer.observe(canvas);
     this.visibility = () => {
-      clearTimeout(this.timer); cancelAnimationFrame(this.animationFrame);
-      if (!document.hidden) this.tick();
+      clearTimeout(this.timer); clearTimeout(this.releaseTimer); cancelAnimationFrame(this.animationFrame);
+      if (document.hidden) this.releaseTimer = setTimeout(() => this.releaseSurfaces(), HIDDEN_RELEASE_DELAY);
+      else {
+        if (this.released) { this.released = false; this.resize(); }
+        this.lastTime = performance.now(); this.nextFrameAt = null; this.tick();
+      }
     };
     document.addEventListener('visibilitychange', this.visibility);
     this.resize();
-    this.tick();
+    this.visibility();
   }
 
   resize() {
+    if (this.stopped || (document.hidden && this.released)) return;
     const rect = this.canvas.getBoundingClientRect();
     this.width = Math.max(1, rect.width);
     this.height = Math.max(1, rect.height);
@@ -239,36 +246,38 @@ export class DispatchScene {
     ctx.restore();
   }
 
-  point(particle, t) {
+  point(particle, t, out) {
     const w = this.width, h = this.height;
-    const portY = h * [.19, .51, .84][particle.port];
+    const portY = h * (particle.port === 0 ? .19 : particle.port === 1 ? .51 : .84);
     if (t < .48) {
       const u = Math.max(0, t / .48), y = this.sourceY(particle.index, 14);
       const end = rim(portY, w, h);
-      return [bezier(178, w * .32, end - 100, end, u),
-        bezier(y, y + (particle.seed - .5) * h * .5, portY + (particle.seed - .5) * 180, portY, u)];
+      out[0] = bezier(178, w * .32, end - 100, end, u);
+      out[1] = bezier(y, y + (particle.seed - .5) * h * .5, portY + (particle.seed - .5) * 180, portY, u);
+      return out;
     }
     const u = (t - .48) / .52;
     const y = (particle.seed * .84 + .08) * h;
     const x = rim(y, w, h, true);
-    return [x + u * (w + 180 - x), y + u * (y - h / 2) * .55];
+    out[0] = x + u * (w + 180 - x); out[1] = y + u * (y - h / 2) * .55;
+    return out;
   }
 
   paintParticles(ctx, dt) {
-    const alive = [];
+    let alive = 0;
     for (const particle of this.particles) {
       particle.t += dt * particle.speed;
       if (particle.t > 1) continue;
-      alive.push(particle);
+      this.particles[alive++] = particle;
       if (particle.t < 0) continue;
-      const head = this.point(particle, particle.t);
-      const tail = this.point(particle, Math.max(particle.t < .48 ? 0 : .48, particle.t - (particle.t > .48 ? .12 : .025)));
+      const head = this.point(particle, particle.t, this.head);
+      const tail = this.point(particle, Math.max(particle.t < .48 ? 0 : .48, particle.t - (particle.t > .48 ? .12 : .025)), this.tail);
       const opacity = Math.min(1, (1 - particle.t) * 4) * .8;
       ctx.beginPath(); ctx.moveTo(...tail); ctx.lineTo(...head);
       ctx.strokeStyle = `rgba(${particle.color},${opacity})`; ctx.lineWidth = particle.width; ctx.stroke();
       if (particle.width > 1) { ctx.fillStyle = `rgba(${this.palette.accent},.9)`; ctx.fillRect(head[0] - 1, head[1] - 1, 2, 2); }
     }
-    this.particles = alive;
+    this.particles.length = alive;
   }
 
   tick() {
@@ -340,8 +349,15 @@ export class DispatchScene {
     this.animationFrame = requestAnimationFrame(next);
   }
 
+  releaseSurfaces() {
+    this.particles.length = 0; this.wasImmersive = false; this.released = true;
+    // Resize backing stores to actually relinquish pixel memory, not just stop drawing.
+    for (const surface of [this.canvas, this.backdrop, this.atlas]) { surface.width = 1; surface.height = 1; }
+  }
+
   destroy() {
     this.stopped = true; clearTimeout(this.timer); cancelAnimationFrame(this.animationFrame); this.observer.disconnect();
     document.removeEventListener('visibilitychange', this.visibility);
+    clearTimeout(this.releaseTimer); this.releaseSurfaces();
   }
 }

@@ -66,7 +66,7 @@ export function createDashboardServer(collector, { staticDir = resolve('dist/cli
         res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
         res.write(`event: snapshot\ndata: ${JSON.stringify(snapshot(true))}\n\n`);
         clients.add(res);
-        req.on('close', () => clients.delete(res));
+        req.on('close', () => { clients.delete(res); if (!clients.size) pending = []; });
         return;
       }
       if (url.pathname === '/api/events') {
@@ -96,7 +96,10 @@ export function createDashboardServer(collector, { staticDir = resolve('dist/cli
       await serveStatic(url.pathname, res, staticDir);
     } catch { if (!res.headersSent) json(res, 500, { error: 'Unable to read local source' }); else res.destroy(); }
   });
-  server.on('close', () => { clearInterval(interval); collector.off('event', onEvent); clients.forEach(client => client.end()); });
+  server.on('close', () => {
+    clearInterval(interval); collector.off('event', onEvent); readReplay.close(); pending = [];
+    clients.forEach(client => client.end()); clients.clear();
+  });
   return server;
 }
 

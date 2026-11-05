@@ -23,24 +23,39 @@ async function readHistory(file, session) {
   } finally { await handle.close(); }
 }
 
-export function createReplayReader(collector) {
+export function createReplayReader(collector, { ttl = 60_000 } = {}) {
   const cache = new Map();
-  return async provider => {
-    const existing = cache.get(provider);
-    if (existing && Date.now() - existing.at < 60_000) return existing.result;
+  const inFlight = new Map();
+  let closed = false;
+  const load = async provider => {
     const sources = provider === 'all' ? ['codex', 'claude'] : [provider];
     const events = [];
     for (const source of sources) {
       const files = [...collector.files.values()].filter(file => file.provider === source)
         .sort((a, b) => collector.sessions.get(b.id).lastSeen - collector.sessions.get(a.id).lastSeen).slice(0, 3);
       for (const file of files) {
+        if (closed) break;
         // Read bounded tails into a separate display buffer; never ingest replay as live traffic.
         events.push(...await readHistory(file, { ...collector.sessions.get(file.id) }));
       }
     }
     events.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-    const result = { events: events.slice(-128), source: 'local-log-history' };
-    cache.set(provider, { at: Date.now(), result });
+    const result = { events: events.slice(-96), source: 'local-log-history' };
+    if (!closed) {
+      const timer = setTimeout(() => cache.delete(provider), ttl);
+      timer.unref(); cache.set(provider, { result, timer });
+    }
     return result;
   };
+  const read = provider => {
+    if (closed) return Promise.reject(new Error('Replay reader closed'));
+    if (cache.has(provider)) return Promise.resolve(cache.get(provider).result);
+    // Both display halves share one bounded disk read when requesting history together.
+    if (!inFlight.has(provider)) inFlight.set(provider, load(provider).finally(() => inFlight.delete(provider)));
+    return inFlight.get(provider);
+  };
+  read.close = () => {
+    closed = true; cache.forEach(entry => clearTimeout(entry.timer)); cache.clear(); inFlight.clear();
+  };
+  return read;
 }
