@@ -1,5 +1,6 @@
 import AppKit
 import WebKit
+import OSLog
 
 final class SaverWebView: NSObject, WKNavigationDelegate {
     let view: WKWebView
@@ -10,6 +11,7 @@ final class SaverWebView: NSObject, WKNavigationDelegate {
     private weak var container: NSView?
     private var statusLabel: NSTextField?
     private let path: String
+    private let logger = Logger(subsystem: "local.agentops.screensaver", category: "webview")
 
     init(container: NSView, layout: DisplayLayout, path: String = "/screensaver") {
         self.path = path
@@ -27,8 +29,23 @@ final class SaverWebView: NSObject, WKNavigationDelegate {
         view.autoresizingMask = [.width, .height]
         view.navigationDelegate = self
         view.underPageBackgroundColor = .black
+        configureScreenSaverVisibility()
         container.addSubview(view)
         load()
+    }
+
+    private func configureScreenSaverVisibility() {
+        guard Bundle.main.bundleIdentifier == "local.agentops.saver.extension" else { return }
+        // WallpaperAgent's remote windows report themselves as occluded even while
+        // displaying the saver. WebKit otherwise freezes their layers after 3 seconds.
+        // Only this extension opts out; AgentOpsSaverView still disposes on stop/sleep.
+        let setter = NSSelectorFromString("_setWindowOcclusionDetectionEnabled:")
+        guard view.responds(to: setter) else {
+            logger.error("Screen saver visibility compatibility is unavailable")
+            return
+        }
+        view.setValue(false, forKey: "windowOcclusionDetectionEnabled")
+        logger.notice("Screen saver remote-window visibility enabled")
     }
 
     func update(layout: DisplayLayout) {
@@ -53,6 +70,7 @@ final class SaverWebView: NSObject, WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        logger.info("Local page loaded: \(self.path, privacy: .public)")
         statusLabel?.removeFromSuperview(); statusLabel = nil
         retry?.invalidate(); retry = nil
         publishDesktopSize()
@@ -74,9 +92,18 @@ final class SaverWebView: NSObject, WKNavigationDelegate {
         retry = Timer.scheduledTimer(withTimeInterval: 5, repeats: false) { [weak self] _ in self?.load() }
     }
 
-    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { failed() }
-    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { failed() }
-    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { failed() }
+    private func navigationFailed(_ error: Error) {
+        let failure = error as NSError
+        logger.error("Local page failed: \(failure.domain, privacy: .public) / \(failure.code)")
+        failed()
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { navigationFailed(error) }
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { navigationFailed(error) }
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        logger.error("Local page content process terminated")
+        failed()
+    }
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {

@@ -12,7 +12,7 @@ SOURCE = ROOT / 'macos' / 'AgentOpsSaver'
 OUTPUT = ROOT / 'artifacts' / 'macos'
 APP = OUTPUT / 'Agent Ops Screen Saver.app'
 EXTENSION = APP / 'Contents' / 'PlugIns' / 'AgentOpsSaver.appex'
-VERSION = '1.1.0'
+VERSION = '1.1.1'
 
 
 def write_plist(path, value):
@@ -26,7 +26,7 @@ def bundle_info(name, identifier, executable, kind):
         'CFBundleName': name, 'CFBundleDisplayName': name,
         'CFBundleIdentifier': identifier, 'CFBundleExecutable': executable,
         'CFBundlePackageType': kind, 'CFBundleInfoDictionaryVersion': '6.0',
-        'CFBundleShortVersionString': VERSION, 'CFBundleVersion': '2',
+        'CFBundleShortVersionString': VERSION, 'CFBundleVersion': '3',
         'LSMinimumSystemVersion': '26.0', 'NSHighResolutionCapable': True,
         'NSAppTransportSecurity': {'NSAllowsLocalNetworking': True},
     }
