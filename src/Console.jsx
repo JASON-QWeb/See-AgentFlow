@@ -60,7 +60,7 @@ export function Console({ open, onClose, events, data, initialEvent, initialSess
           {filtered.slice(0, 400).map(event => <button key={event.id} className={`console-event ${event.id === selected?.id ? 'selected' : ''}`} onClick={() => setSelected(event)}>
             <div><b className={event.provider}>{event.provider.toUpperCase()}</b><span>{t(labels[event.kind])}</span><time>{time(event.timestamp)}</time></div>
             <p>{event.tool ? `${event.tool} · ` : ''}{event.preview.slice(0, 180) || t("(empty record)")}</p>
-            <small>{event.historical ? t("HISTORY") : t("CAPTURED LIVE")} / {bytes(event.bytes)}</small>
+            <small>{event.historical ? t("HISTORY") : t("CAPTURED LIVE")}{event.bytes ? ` / ${bytes(event.bytes)}` : ''}</small>
           </button>)}
           {!filtered.length && <p className="empty">{t("No matching records. New events appear automatically.")}</p>}
         </div>

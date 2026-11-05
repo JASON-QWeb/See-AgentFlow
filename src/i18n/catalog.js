@@ -95,7 +95,6 @@ export const messages = {
   'Fullscreen password': ['全屏密码', '全螢幕密碼'],
   'Password configured': ['已设置密码', '已設定密碼'], 'Password not set': ['尚未设置密码', '尚未設定密碼'],
   'Set password…': ['设置密码…', '設定密碼…'], 'Change password…': ['修改密码…', '修改密碼…'],
-  'Only available in the desktop App.': ['请在桌面 App 中设置此功能。', '請在桌面 App 中設定此功能。'],
   'Lock again after screen saver': ['屏保结束后进入全屏锁定', '螢幕保護程式結束後進入全螢幕鎖定'],
   'After macOS returns to desktop, require the app password on every display.': ['macOS 返回桌面后，所有屏幕均需输入应用密码解锁。', 'macOS 返回桌面後，所有螢幕均需輸入應用程式密碼解鎖。'],
   'Password entry stays in the native App.': ['密码通过原生窗口输入，不经过网页和日志服务。', '密碼透過原生視窗輸入，不經過網頁和紀錄服務。'],

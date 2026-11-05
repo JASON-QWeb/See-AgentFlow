@@ -66,7 +66,7 @@ button svg, a svg { flex-shrink: 0; }
 .throughput strong span { font-size: 11px; color: #7f9b8f; margin-left: 5px; }
 .throughput > span { font-size: 6px; letter-spacing: .9px; color: #607c70; }
 .throughput-track { height: 2px; background: #1c332d; margin-bottom: 7px; }
-.throughput-track i { height: 100%; background: var(--mint); display: block; transition: width 1s ease; }
+.throughput-track i { height: 100%; background: var(--mint); display: block; transform-origin: 0 50%; transition: transform 1s ease; }
 .core-status { position: absolute; right: 29px; bottom: 38px; width: 251px; border-left: 2px solid #7ca192; padding: 3px 0 3px 12px; background: #080f11ba; }
 .eyebrow { font-size: 8px; letter-spacing: 1px; color: #78988b; display: block; }
 .core-status strong { display: flex; align-items: center; gap: 7px; font-size: 14px; letter-spacing: .1px; font-weight: 500; margin: 8px 0; }
@@ -98,7 +98,7 @@ button svg, a svg { flex-shrink: 0; }
 .graph-legend > span:last-child { margin-left: auto; color: #5b7c6b; }
 .legend-dot { height: 3px; width: 3px; display: inline-block; background: #91ddc3; }
 .legend-dot.claude { background: #cbd9cd; }
-.code-preview { display: block; text-align: left; padding: 0; overflow: hidden; font-size: 8px; line-height: 14px; flex: 1; min-height: 0; }
+.code-preview { display: flex; flex-direction: column; justify-content: flex-start; text-align: left; padding: 0; overflow: hidden; font-size: 8px; line-height: 14px; flex: 1; min-height: 0; }
 .code-preview div { display: flex; white-space: pre; min-width: 0; }
 .code-preview em { width: 28px; flex-shrink: 0; color: #649580; font-style: normal; font-size: 7px; }
 .code-preview span { overflow: hidden; text-overflow: ellipsis; color: #c3dbcb; }
@@ -282,7 +282,8 @@ dialog::backdrop { background: #030908c9; backdrop-filter: blur(4px); }
 /* Shared panorama geometry must not change at each physical monitor's media-query breakpoint. */
 .dashboard[data-panorama] { padding: 0 14px; gap: 6px; }
 .dashboard[data-panorama] .observatory { margin: 0 -14px; }
-.dashboard[data-panorama] .panel-grid { grid-template-columns: 1.03fr 1.05fr 1.05fr 1fr; grid-template-rows: 1fr; }
+/* Equal columns put the seam of two matched displays inside the centre gap, not through a panel edge. */
+.dashboard[data-panorama] .panel-grid { grid-template-columns: repeat(4, 1fr); grid-template-rows: 1fr; }
 .dashboard[data-panorama] .orchestration-panel { display: flex; }
 
 /* Compact mode is exclusive to the floating desktop window. */

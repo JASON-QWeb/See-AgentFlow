@@ -128,3 +128,20 @@
 [data-theme="white"] :is(.icon-button:hover, .icon-button.active, .display-toggle[aria-pressed="true"]) { border-color: #888; }
 [data-theme="white"] :is(.icon-button.active, .console-event:hover) { background: #2a2b2d; }
 [data-theme="white"] :is(.console-events, .full-content, .settings-dialog) { scrollbar-color: #555 transparent; }
+
+/* Silver Stream counterparts for tokens that otherwise keep the mint hue of the base stylesheet. */
+[data-theme="paper"] .masthead h1 span, [data-theme="paper"] .empty { color: #a19aa7; }
+[data-theme="paper"] ::selection { background: #4d3a4e; color: #fff; }
+[data-theme="paper"] dialog::backdrop { background: #050407c9; }
+[data-theme="paper"] :is(.rail-bottom b, .throughput strong span, .graph-legend > span:last-child,
+  .session-bars em, .statusbar .separator, .dialog-heading h2 span, .search,
+  .list-heading span, .console-event time, .detail-empty > span, .detail-empty p,
+  .console-footer, .setting-row p) { color: #a19aa7; }
+[data-theme="paper"] :is(.detail-actions button, .detail-actions a, .error, .warning) { color: #e7d9e6; }
+[data-theme="paper"] .search input::placeholder { color: #8f8796; }
+[data-theme="paper"] :is(.masthead p i, .core-status strong i) { background: #a797a8; }
+[data-theme="paper"] :is(.connection.connected i, .status-light) { box-shadow: 0 0 7px #e8bed840; }
+[data-theme="paper"] .core-status.is-active strong i { background: var(--mint); }
+[data-theme="paper"] :is(.icon-button:hover, .icon-button.active, .display-toggle[aria-pressed="true"]) { border-color: #8b7a8d; }
+[data-theme="paper"] :is(.icon-button.active, .console-event:hover) { background: #302331; }
+[data-theme="paper"] :is(.console-events, .full-content, .settings-dialog) { scrollbar-color: #5b4c62 transparent; }

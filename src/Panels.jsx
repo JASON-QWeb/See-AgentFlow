@@ -13,8 +13,9 @@ function EventGraph({ events, theme }) {
     const palette = themeFor(theme);
     const paint = () => {
       const { width, height } = node.getBoundingClientRect();
-      node.width = width * 1.25; node.height = height * 1.25;
-      const ctx = node.getContext('2d'); ctx.scale(1.25, 1.25);
+      const scale = Math.min(2, Math.max(1.25, window.devicePixelRatio || 1));
+      node.width = width * scale; node.height = height * scale;
+      const ctx = node.getContext('2d'); ctx.scale(scale, scale);
       ctx.clearRect(0, 0, width, height);
       const recent = events.slice(-180);
       recent.forEach((event, index) => {
@@ -28,20 +29,21 @@ function EventGraph({ events, theme }) {
         ctx.fillRect(x, y, 1.5, 1.5);
       });
       ctx.globalAlpha = 1;
-      ctx.fillStyle = theme === 'white' ? palette.muted : '#6b8580'; ctx.font = '8px "IBM Plex Mono", monospace';
+      ctx.fillStyle = palette.id === 'mint' ? '#6b8580' : palette.muted; ctx.font = '8px "IBM Plex Mono", monospace';
       if (!recent.length) ctx.fillText(t("WAITING FOR LOCAL RECORDS"), 14, height / 2);
     };
-    paint(); const observer = new ResizeObserver(paint); observer.observe(node);
+    // A new observer reports the current size immediately, so this is also the first paint.
+    const observer = new ResizeObserver(paint); observer.observe(node);
     return () => observer.disconnect();
   }, [events, theme, t]);
   return <canvas ref={canvas} role="img" aria-label={t("Recent event distribution; dim points indicate history")} />;
 }
 
-export function Panels({ events, data, selected, onInspect, onConsole, onSession, theme }) {
+export function Panels({ events, data, sessions: sourceSessions, selected, onInspect, onConsole, onSession, theme }) {
   const t = useTranslation();
   const recent = events.slice(-9).reverse();
   const current = selected || events.at(-1);
-  const sessions = data?.sessions.slice(0, 10) || [];
+  const sessions = sourceSessions.slice(0, 10);
   const maxBytes = Math.max(1, ...sessions.map(session => session.bytes));
   return <section className="panel-grid" aria-label={t("Monitoring panels")}>
     <div className="panel event-panel">
@@ -64,7 +66,7 @@ export function Panels({ events, data, selected, onInspect, onConsole, onSession
       <button className="code-preview" onClick={() => current && onInspect(current)} disabled={!current} title={t("Inspect full input and output")}>
         {(current?.preview || t("Awaiting a local session…")).split('\n').slice(0, 9).map((line, index) => <div key={index}><em>{String(index + 1).padStart(3, '0')}</em><span>{line || ' '}</span></div>)}
       </button>
-      <div className="panel-note"><span>{current ? `${t(labels[current.kind])} / ${bytes(current.bytes)}` : t("NO RECORD")}</span><span>{t("READ ONLY")} <ArrowUpRight /></span></div>
+      <div className="panel-note"><span>{current ? `${t(labels[current.kind])}${current.bytes ? ` / ${bytes(current.bytes)}` : ''}` : t("NO RECORD")}</span><span>{t("READ ONLY")} <ArrowUpRight /></span></div>
     </div>
     <div className="panel orchestration-panel">
       <div className="panel-heading"><h2>{t("AGENTS /")} <span>{t("SESSION ACTIVITY")}</span></h2><span>{count(data?.totalSessions)} {t("LOGS")}</span></div>

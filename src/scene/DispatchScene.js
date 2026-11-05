@@ -3,6 +3,10 @@ import { themeFor } from '../themes.js';
 import { translate } from '../i18n/catalog.js';
 import { HIDDEN_RELEASE_DELAY } from '../eventRetention.js';
 
+const encoder = new TextEncoder();
+// Fade steps of 2.5% are invisible on a sub-2px trail and let up to 760 strokes per frame reuse their colour strings.
+const STROKE_LEVELS = 40;
+
 export class DispatchScene {
   constructor(canvas, telemetry) {
     this.canvas = canvas;
@@ -13,6 +17,8 @@ export class DispatchScene {
     this.backdrop = document.createElement('canvas');
     this.atlas = document.createElement('canvas');
     this.particles = [];
+    this.strokes = {};
+    this.topologyTime = 0;
     this.head = [0, 0]; this.tail = [0, 0];
     this.phase = 0;
     this.energy = 0;
@@ -37,6 +43,8 @@ export class DispatchScene {
     document.addEventListener('visibilitychange', this.visibility);
     this.resize();
     this.visibility();
+    // Canvas text uses a fallback until the bundled font arrives, and an idle scene would keep it.
+    document.fonts.ready.then(() => { if (!this.stopped && !this.released) { this.paintBackdrop(); this.paintAtlas(); } });
   }
 
   resize() {
@@ -60,7 +68,14 @@ export class DispatchScene {
     return 252 + index * Math.max(23, Math.min(41, (this.height - 266) / Math.max(1, total)));
   }
 
+  topologyKey() {
+    const { data, provider } = this.telemetry.current;
+    const sessions = (data?.sessions || []).filter(session => provider === 'all' || session.provider === provider);
+    return `${sessions.length}:${sessions.slice(0, 14).map(session => session.id).join()}`;
+  }
+
   paintBackdrop() {
+    this.backdropKey = this.topologyKey();
     const ctx = this.backdrop.getContext('2d');
     const w = this.width, h = this.height;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
@@ -117,6 +132,8 @@ export class DispatchScene {
       ctx.strokeStyle = `rgba(${this.palette.accent},.55)`;
       for (const r of [4, 8, 12]) { ctx.beginPath(); ctx.ellipse(x - 2, y, r * .5, r, -.1, 0, Math.PI * 2); ctx.stroke(); }
       if (w < 720) return;
+      // The session rail sits above this canvas; in small windows it would cover the label.
+      if (x - 159 < (y < 250 ? (w > 1100 ? 310 : 284) : 217)) return;
       ctx.fillStyle = this.palette.surface; ctx.fillRect(x - 159, y - 20, 147, 15);
       ctx.strokeStyle = `rgba(${this.palette.accent},.3)`; ctx.strokeRect(x - 159, y - 20, 147, 15);
       ctx.fillStyle = `rgba(${this.palette.ink},.8)`; ctx.font = '8px "IBM Plex Mono", monospace';
@@ -133,10 +150,13 @@ export class DispatchScene {
     const start = immersive && ordered.length ? Math.floor(this.phase / 1800) * 12 % ordered.length : 0;
     const page = [...ordered.slice(start), ...ordered.slice(0, start)];
     const width = Math.max(100, this.width * .235 - 26);
-    this.atlas.width = Math.ceil(width * this.dpr);
-    this.atlas.height = Math.ceil(1800 * this.dpr);
+    const atlasWidth = Math.ceil(width * this.dpr), atlasHeight = Math.ceil(1800 * this.dpr);
+    // Resizing reallocates the backing store; a repaint at the same size only needs a clear.
+    if (this.atlas.width !== atlasWidth || this.atlas.height !== atlasHeight) { this.atlas.width = atlasWidth; this.atlas.height = atlasHeight; }
     const ctx = this.atlas.getContext('2d');
-    ctx.scale(this.dpr, this.dpr);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, atlasWidth, atlasHeight);
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.font = '9px "IBM Plex Mono", monospace';
     if (!events.length) {
       ctx.fillStyle = `rgba(${this.palette.accent},.65)`;
@@ -170,7 +190,7 @@ export class DispatchScene {
   paintByteMatrix(ctx, event, width, y) {
     // Byte cells encode the actual event preview; they are not invented telemetry.
     const columns = width > 300 ? 8 : 5;
-    const bytes = new TextEncoder().encode(event.preview).slice(0, columns * 8);
+    const bytes = encoder.encode(event.preview).slice(0, columns * 8);
     const cell = width * .39 / columns;
     ctx.fillStyle = `rgba(${this.palette.accent},.6)`;
     ctx.font = '7px "IBM Plex Mono", monospace';
@@ -263,6 +283,12 @@ export class DispatchScene {
     return out;
   }
 
+  rgba(color, opacity) {
+    const level = Math.round(opacity * STROKE_LEVELS);
+    const table = this.strokes[color] ??= [];
+    return table[level] ??= `rgba(${color},${level / STROKE_LEVELS})`;
+  }
+
   paintParticles(ctx, dt) {
     let alive = 0;
     for (const particle of this.particles) {
@@ -273,9 +299,9 @@ export class DispatchScene {
       const head = this.point(particle, particle.t, this.head);
       const tail = this.point(particle, Math.max(particle.t < .48 ? 0 : .48, particle.t - (particle.t > .48 ? .12 : .025)), this.tail);
       const opacity = Math.min(1, (1 - particle.t) * 4) * .8;
-      ctx.beginPath(); ctx.moveTo(...tail); ctx.lineTo(...head);
-      ctx.strokeStyle = `rgba(${particle.color},${opacity})`; ctx.lineWidth = particle.width; ctx.stroke();
-      if (particle.width > 1) { ctx.fillStyle = `rgba(${this.palette.accent},.9)`; ctx.fillRect(head[0] - 1, head[1] - 1, 2, 2); }
+      ctx.beginPath(); ctx.moveTo(tail[0], tail[1]); ctx.lineTo(head[0], head[1]);
+      ctx.strokeStyle = this.rgba(particle.color, opacity); ctx.lineWidth = particle.width; ctx.stroke();
+      if (particle.width > 1) { ctx.fillStyle = this.rgba(this.palette.accent, .9); ctx.fillRect(head[0] - 1, head[1] - 1, 2, 2); }
     }
     this.particles.length = alive;
   }
@@ -313,7 +339,12 @@ export class DispatchScene {
     const atlasKey = `${state.immersive}:${state.replayRevision}:${state.immersive ? Math.floor(this.phase / 1800) : state.events.at(-1)?.id}`;
     if (this.lastEvent !== atlasKey && (!this.lastEvent || state.replayRevision !== this.replayRevision || now - this.atlasTime > 2500)) {
       this.lastEvent = atlasKey; this.replayRevision = state.replayRevision; this.atlasTime = now;
-      this.paintAtlas(); this.paintBackdrop();
+      this.paintAtlas();
+    }
+    // The full-frame backdrop only draws session topology, so it repaints when that changes, not on every event.
+    if (now - this.topologyTime > 2500) {
+      this.topologyTime = now;
+      if (this.topologyKey() !== this.backdropKey) this.paintBackdrop();
     }
     const started = performance.now();
     const ctx = this.ctx;

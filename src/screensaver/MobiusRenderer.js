@@ -8,7 +8,8 @@ import { HIDDEN_RELEASE_DELAY } from '../eventRetention.js';
 export class MobiusRenderer {
   constructor(canvas, telemetry, layout) {
     this.canvas = canvas; this.telemetry = telemetry; this.layout = layout;
-    this.palette = themeFor(telemetry.current.theme);
+    this.usePalette(themeFor(telemetry.current.theme));
+    this.locations = new WeakMap();
     this.gl = canvas.getContext('webgl2', { alpha: false, antialias: true, powerPreference: 'low-power' });
     if (!this.gl) throw new Error('The dual-display ribbon requires WebGL 2');
     this.textCanvas = document.createElement('canvas');
@@ -40,7 +41,7 @@ export class MobiusRenderer {
     const visibleHeight = Math.max(1, Math.min(height, sceneHeight - y));
     const scale = Math.min(devicePixelRatio || 1, Math.sqrt(8294400 / (width * visibleHeight)));
     this.canvas.width = Math.round(width * scale); this.canvas.height = Math.round(visibleHeight * scale);
-    this.view = [this.layout.x, y, width, visibleHeight];
+    this.view = new Float32Array([this.layout.x, y, width, visibleHeight]);
     this.ring = program(gl, ringVertex, ringFragment); this.line = program(gl, lineVertex, lineFragment);
     this.packetProgram = program(gl, packetVertex, lineFragment);
     this.innerProgram = program(gl, innerVertex, lineFragment);
@@ -74,14 +75,32 @@ export class MobiusRenderer {
   updateTheme() {
     const palette = themeFor(this.telemetry.current.theme);
     if (palette.id === this.palette.id) return;
-    this.palette = palette; this.atlasRevision = null; this.atlasAt = 0;
+    this.usePalette(palette); this.atlasRevision = null; this.atlasAt = 0;
     this.gl.clearColor(...hexRGB(palette.background), 1); this.buildRoutes();
+  }
+
+  usePalette(palette) {
+    this.palette = palette;
+    this.accent = new Float32Array(rgb(palette.accent)); this.ink = new Float32Array(rgb(palette.ink));
+  }
+
+  // Locations stay valid for the life of a linked program; looking them up each frame only makes garbage.
+  uniform(program, name) {
+    let table = this.locations.get(program);
+    if (!table) this.locations.set(program, table = {});
+    return table[name] ??= this.gl.getUniformLocation(program, name);
+  }
+
+  attribute(program, name) {
+    let table = this.locations.get(program);
+    if (!table) this.locations.set(program, table = {});
+    return table[name] ??= this.gl.getAttribLocation(program, name);
   }
 
   setPalette(program) {
     const gl = this.gl;
-    gl.uniform3fv(gl.getUniformLocation(program, 'u_accent'), rgb(this.palette.accent));
-    gl.uniform3fv(gl.getUniformLocation(program, 'u_ink'), rgb(this.palette.ink));
+    gl.uniform3fv(this.uniform(program, 'u_accent'), this.accent);
+    gl.uniform3fv(this.uniform(program, 'u_ink'), this.ink);
   }
 
   updateAtlas(now) {
@@ -113,9 +132,9 @@ export class MobiusRenderer {
 
   drawLines(buffer, count) {
     const gl = this.gl; gl.useProgram(this.line); gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.uniform4fv(gl.getUniformLocation(this.line, 'u_view'), this.view);
+    gl.uniform4fv(this.uniform(this.line, 'u_view'), this.view);
     for (const [name, size, offset] of [['a_position', 2, 0], ['a_color', 4, 8]]) {
-      const location = gl.getAttribLocation(this.line, name);
+      const location = this.attribute(this.line, name);
       gl.enableVertexAttribArray(location); gl.vertexAttribPointer(location, size, gl.FLOAT, false, 24, offset);
     }
     gl.drawArrays(gl.TRIANGLES, 0, count);
@@ -125,11 +144,11 @@ export class MobiusRenderer {
     const state = this.telemetry.current;
     const count = state.immersive ? OUTER_PACKETS : Math.floor(Math.min(OUTER_PACKETS, 100 + (state.data?.rate || 0) * 40));
     const gl = this.gl; gl.useProgram(this.packetProgram); gl.bindBuffer(gl.ARRAY_BUFFER, this.packetBuffer);
-    gl.uniform4fv(gl.getUniformLocation(this.packetProgram, 'u_view'), this.view);
-    gl.uniform2f(gl.getUniformLocation(this.packetProgram, 'u_world'), this.layout.worldWidth, this.layout.sceneHeight);
-    gl.uniform1f(gl.getUniformLocation(this.packetProgram, 'u_phase'), (now % 120000) / 120000);
+    gl.uniform4fv(this.uniform(this.packetProgram, 'u_view'), this.view);
+    gl.uniform2f(this.uniform(this.packetProgram, 'u_world'), this.layout.worldWidth, this.layout.sceneHeight);
+    gl.uniform1f(this.uniform(this.packetProgram, 'u_phase'), (now % 120000) / 120000);
     for (const [name, size, offset] of [['a_packet', 4, 0], ['a_tail', 3, 16]]) {
-      const location = gl.getAttribLocation(this.packetProgram, name);
+      const location = this.attribute(this.packetProgram, name);
       gl.enableVertexAttribArray(location); gl.vertexAttribPointer(location, size, gl.FLOAT, false, 28, offset);
     }
     this.setPalette(this.packetProgram);
@@ -140,12 +159,12 @@ export class MobiusRenderer {
     const gl = this.gl, shader = this.innerProgram, state = this.telemetry.current;
     const count = state.immersive ? INNER_PACKETS : Math.min(INNER_PACKETS, Math.floor((state.data?.rate || 0) * 20));
     gl.useProgram(shader); gl.bindBuffer(gl.ARRAY_BUFFER, packets ? this.innerPackets : this.innerRoutes);
-    gl.uniform4fv(gl.getUniformLocation(shader, 'u_view'), this.view);
-    gl.uniform2f(gl.getUniformLocation(shader, 'u_world'), this.layout.worldWidth, this.layout.sceneHeight);
-    gl.uniform1f(gl.getUniformLocation(shader, 'u_phase'), (now % 120000) / 120000);
-    gl.uniform1f(gl.getUniformLocation(shader, 'u_packets'), Number(packets));
+    gl.uniform4fv(this.uniform(shader, 'u_view'), this.view);
+    gl.uniform2f(this.uniform(shader, 'u_world'), this.layout.worldWidth, this.layout.sceneHeight);
+    gl.uniform1f(this.uniform(shader, 'u_phase'), (now % 120000) / 120000);
+    gl.uniform1f(this.uniform(shader, 'u_packets'), Number(packets));
     for (const [name, size, offset] of [['a_path', 4, 0], ['a_sample', 3, 16]]) {
-      const location = gl.getAttribLocation(shader, name);
+      const location = this.attribute(shader, name);
       gl.enableVertexAttribArray(location); gl.vertexAttribPointer(location, size, gl.FLOAT, false, 28, offset);
     }
     this.setPalette(shader);
@@ -159,13 +178,13 @@ export class MobiusRenderer {
     this.drawLines(this.routes, this.routeCount); this.drawPackets(now);
     this.drawInner(now, false); this.drawInner(now, true);
     gl.enable(gl.DEPTH_TEST); gl.useProgram(this.ring); gl.bindBuffer(gl.ARRAY_BUFFER, this.mesh);
-    const uv = gl.getAttribLocation(this.ring, 'a_uv');
+    const uv = this.attribute(this.ring, 'a_uv');
     gl.enableVertexAttribArray(uv); gl.vertexAttribPointer(uv, 2, gl.FLOAT, false, 0, 0);
-    gl.uniform4fv(gl.getUniformLocation(this.ring, 'u_view'), this.view);
-    gl.uniform2f(gl.getUniformLocation(this.ring, 'u_world'), this.layout.worldWidth, this.layout.sceneHeight);
-    gl.uniform1f(gl.getUniformLocation(this.ring, 'u_phase'), (now % 120000) / 120000);
+    gl.uniform4fv(this.uniform(this.ring, 'u_view'), this.view);
+    gl.uniform2f(this.uniform(this.ring, 'u_world'), this.layout.worldWidth, this.layout.sceneHeight);
+    gl.uniform1f(this.uniform(this.ring, 'u_phase'), (now % 120000) / 120000);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.texture);
-    gl.uniform1i(gl.getUniformLocation(this.ring, 'u_text'), 0);
+    gl.uniform1i(this.uniform(this.ring, 'u_text'), 0);
     this.setPalette(this.ring);
     gl.drawArrays(gl.TRIANGLES, 0, this.meshCount);
   }

@@ -7,7 +7,7 @@ export function useTelemetry() {
   const [events, setEvents] = useState([]);
   const visual = useRef({ data: null, events: [], queue: [], paused: false, eco: false, immersive: false, quality: 'high', provider: 'all', fps: 0, frameMs: 0 });
   useEffect(() => {
-    let stream, releaseTimer;
+    let stream, releaseTimer, retryTimer;
     let retained = [];
     const publish = next => {
       if (next === retained) return;
@@ -33,11 +33,15 @@ export function useTelemetry() {
       stream = new EventSource('/api/stream');
       stream.addEventListener('snapshot', message => ingest(message, true));
       stream.addEventListener('update', message => ingest(message, false));
-      stream.onerror = () => setConnected(false);
+      stream.onerror = () => {
+        setConnected(false);
+        // Browsers retry dropped connections themselves but give up after a non-200 response.
+        if (stream.readyState === EventSource.CLOSED) { clearTimeout(retryTimer); retryTimer = setTimeout(connect, 5000); }
+      };
     };
     const visibility = () => {
       stream?.close();
-      clearTimeout(releaseTimer);
+      clearTimeout(releaseTimer); clearTimeout(retryTimer);
       if (document.hidden) {
         setConnected(false); visual.current.queue = [];
         releaseTimer = setTimeout(release, HIDDEN_RELEASE_DELAY);
@@ -47,7 +51,7 @@ export function useTelemetry() {
     connect();
     document.addEventListener('visibilitychange', visibility);
     return () => {
-      stream?.close(); clearInterval(sweeper); clearTimeout(releaseTimer);
+      stream?.close(); clearInterval(sweeper); clearTimeout(releaseTimer); clearTimeout(retryTimer);
       document.removeEventListener('visibilitychange', visibility);
       visual.current.events = []; visual.current.queue = []; visual.current.data = null;
     };
