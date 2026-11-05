@@ -14,6 +14,10 @@ final class DesktopPreferences {
         get { defaults.object(forKey: "AgentOpsAlwaysOnTop") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "AgentOpsAlwaysOnTop") }
     }
+    var lockAfterSaver: Bool {
+        get { defaults.object(forKey: "AgentOpsLockAfterSaver") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "AgentOpsLockAfterSaver") }
+    }
     func reloadLanguage() {
         guard let attributes = try? FileManager.default.attributesOfItem(atPath: file.path),
               let size = attributes[.size] as? NSNumber, size.intValue <= 1024,
@@ -27,6 +31,21 @@ final class DesktopPreferences {
         return values[language == "zh-CN" ? 0 : 1]
     }
     private static let labels = [
+        "AGENT OPS / LOCKED": ["AGENT OPS / 已锁定", "AGENT OPS / 已鎖定"],
+        "Lock All Displays": ["锁定全部屏幕", "鎖定所有螢幕"],
+        "Lock Original Layout": ["锁定 · 原版布局", "鎖定 · 原版配置"],
+        "Password Settings…": ["密码设置…", "密碼設定…"],
+        "Fullscreen password": ["全屏密码", "全螢幕密碼"],
+        "Use 6–128 characters.": ["请输入 6–128 个字符。", "請輸入 6–128 個字元。"],
+        "Current password": ["当前密码", "目前密碼"], "New password": ["新密码", "新密碼"],
+        "Confirm password": ["确认密码", "確認密碼"], "Save password": ["保存密码", "儲存密碼"],
+        "Cancel": ["取消", "取消"], "Password": ["密码", "密碼"], "Unlock": ["解锁", "解鎖"],
+        "Passwords do not match.": ["两次输入的密码不一致。", "兩次輸入的密碼不一致。"],
+        "Current password is incorrect.": ["当前密码不正确。", "目前密碼不正確。"],
+        "Password storage is unavailable.": ["密码存储不可用。", "密碼儲存無法使用。"],
+        "Enter password to return to desktop.": ["输入密码返回桌面。", "輸入密碼返回桌面。"],
+        "Incorrect password.": ["密码不正确。", "密碼不正確。"],
+        "Too many attempts. Try again shortly.": ["尝试次数过多，请稍后再试。", "嘗試次數過多，請稍後再試。"],
         "Show Floating Dashboard": ["显示悬浮看板", "顯示浮動看板"],
         "Preview Linked Displays": ["预览多屏联动", "預覽多螢幕連動"],
         "Preview Single Display": ["预览单屏", "預覽單螢幕"],

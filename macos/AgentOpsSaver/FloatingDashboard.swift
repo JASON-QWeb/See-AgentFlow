@@ -5,6 +5,7 @@ final class FloatingDashboard: NSObject, NSWindowDelegate {
     let window: NSPanel
     private var web: SaverWebView?
     private let preferences: DesktopPreferences
+    private let lockCoordinator: AppLockCoordinator
     private var wantsVisible = false
     private var locked = false
     private var saverActive = false
@@ -14,8 +15,9 @@ final class FloatingDashboard: NSObject, NSWindowDelegate {
     private var workspace: [NSObjectProtocol] = []
     private let logger = Logger(subsystem: "local.agentops.desktop", category: "lifecycle")
 
-    init(preferences: DesktopPreferences = DesktopPreferences()) {
+    init(preferences: DesktopPreferences = DesktopPreferences(), lockCoordinator: AppLockCoordinator) {
         self.preferences = preferences
+        self.lockCoordinator = lockCoordinator
         window = NSPanel(contentRect: NSRect(x: 80, y: 80, width: 1120, height: 760),
                          styleMask: [.titled, .closable, .resizable, .miniaturizable, .fullSizeContentView], backing: .buffered, defer: false)
         super.init()
@@ -69,6 +71,7 @@ final class FloatingDashboard: NSObject, NSWindowDelegate {
     }
 
     func setPreviewActive(_ value: Bool) { previewActive = value; refresh() }
+    func showLockSettings() { show(); web?.openLockSettings() }
 
     func setAlwaysOnTop(_ value: Bool) {
         preferences.alwaysOnTop = value; applyWindowLevel()
@@ -85,7 +88,7 @@ final class FloatingDashboard: NSObject, NSWindowDelegate {
         }
         if web == nil, let container = window.contentView {
             let layout = DisplayLayout.make(screen: window.screen, preview: true)
-            web = SaverWebView(container: container, layout: layout, path: "/?desktop=1")
+            web = SaverWebView(container: container, layout: layout, path: "/?desktop=1", desktopBridge: DesktopLockBridge(lockCoordinator))
             fitDashboard()
             logger.notice("floating renderer started")
         }

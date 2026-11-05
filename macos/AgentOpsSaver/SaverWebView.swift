@@ -11,9 +11,11 @@ final class SaverWebView: NSObject, WKNavigationDelegate {
     private weak var container: NSView?
     private var statusLabel: NSTextField?
     private let path: String
+    private var pageReady = false
+    private var pendingSettings = false
     private let logger = Logger(subsystem: "local.agentops.screensaver", category: "webview")
 
-    init(container: NSView, layout: DisplayLayout, path: String = "/screensaver") {
+    init(container: NSView, layout: DisplayLayout, path: String = "/screensaver", desktopBridge: WKScriptMessageHandlerWithReply? = nil) {
         self.path = path
         self.container = container
         currentLayout = layout.json
@@ -21,6 +23,7 @@ final class SaverWebView: NSObject, WKNavigationDelegate {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = path == "/screensaver" ? .nonPersistent() : .default()
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
+        if let desktopBridge { configuration.userContentController.addScriptMessageHandler(desktopBridge, contentWorld: .page, name: "agentLock") }
         configuration.userContentController.addUserScript(WKUserScript(
             source: "window.__AGENT_SAVER_LAYOUT__ = \(layout.json); window.__AGENT_DESKTOP_SIZE__ = {width: \(desktopSize.width), height: \(desktopSize.height)};",
             injectionTime: .atDocumentStart, forMainFrameOnly: true))
@@ -66,6 +69,7 @@ final class SaverWebView: NSObject, WKNavigationDelegate {
 
     private func load() {
         guard !disposed, let url = URL(string: "http://127.0.0.1:4318\(path)") else { return }
+        pageReady = false
         view.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 8))
     }
 
@@ -73,8 +77,16 @@ final class SaverWebView: NSObject, WKNavigationDelegate {
         logger.info("Local page loaded: \(self.path, privacy: .public)")
         statusLabel?.removeFromSuperview(); statusLabel = nil
         retry?.invalidate(); retry = nil
+        pageReady = true; publishSettings()
         publishDesktopSize()
         view.evaluateJavaScript("window.dispatchEvent(new CustomEvent('agent-saver-layout', {detail: \(currentLayout)}));", completionHandler: nil)
+    }
+
+    func openLockSettings() { pendingSettings = true; publishSettings() }
+    private func publishSettings() {
+        guard pendingSettings, pageReady, !disposed else { return }
+        pendingSettings = false
+        view.evaluateJavaScript("window.__AGENT_OPEN_LOCK_SETTINGS__ = true; window.dispatchEvent(new Event('agent-open-lock-settings'));", completionHandler: nil)
     }
 
     private func failed() {
@@ -86,7 +98,8 @@ final class SaverWebView: NSObject, WKNavigationDelegate {
             label.alignment = .center
             label.frame = NSRect(x: 0, y: container.bounds.midY - 40, width: container.bounds.width, height: 80)
             label.autoresizingMask = [.width, .minYMargin, .maxYMargin]
-            container.addSubview(label); statusLabel = label
+            // Keep connection status below native overlays such as the password prompt.
+            container.addSubview(label, positioned: .above, relativeTo: view); statusLabel = label
         }
         retry?.invalidate()
         retry = Timer.scheduledTimer(withTimeInterval: 5, repeats: false) { [weak self] _ in self?.load() }
@@ -117,6 +130,7 @@ final class SaverWebView: NSObject, WKNavigationDelegate {
         disposed = true; retry?.invalidate(); retry = nil
         view.stopLoading(); view.navigationDelegate = nil
         view.configuration.userContentController.removeAllUserScripts()
+        view.configuration.userContentController.removeScriptMessageHandler(forName: "agentLock", contentWorld: .page)
         view.removeFromSuperview(); statusLabel?.removeFromSuperview(); statusLabel = nil
     }
 

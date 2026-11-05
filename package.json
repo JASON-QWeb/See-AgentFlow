@@ -12,7 +12,8 @@
     "build:dmg": "npm run build:saver && python3 macos/build_dmg.py",
     "test:installer": "node --test tests/installer.test.mjs",
     "preview": "vite preview",
-    "test:sites": "node --test tests/sites-worker.test.mjs"
+    "test:sites": "node --test tests/sites-worker.test.mjs",
+    "test:native-lock": "node scripts/test-native-lock.mjs"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.3.0",

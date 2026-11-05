@@ -4,8 +4,9 @@ import { bytes } from './format.js';
 import { themes } from './themes.js';
 import { languages } from './i18n/catalog.js';
 import { useTranslation } from './i18n/useTranslation.js';
+import { LockSettings } from './LockSettings.jsx';
 
-export function Settings({ open, onClose, data, eco, setEco, paused, setPaused, visual, themeSettings }) {
+export function Settings({ open, onClose, data, eco, setEco, paused, setPaused, visual, themeSettings, nativeLock }) {
   const t = useTranslation();
   const dialog = useRef(null);
   useEffect(() => { if (open && !dialog.current.open) dialog.current.showModal(); if (!open && dialog.current.open) dialog.current.close(); }, [open]);
@@ -13,6 +14,7 @@ export function Settings({ open, onClose, data, eco, setEco, paused, setPaused, 
     <div className="settings-shell">
       <header className="dialog-heading"><div><span className="eyebrow">{t("SYSTEM / PREFERENCES")}</span><h2>{t("Settings")}</h2></div><button className="icon-button" onClick={onClose} aria-label={t("Close settings")}><X size={20} /></button></header>
       <section><h3>{t("LANGUAGE")}</h3><label className="language-setting"><span>{t("Interface language")}</span><select aria-label={t("Interface language")} value={themeSettings.language} disabled={themeSettings.saving} onChange={event => themeSettings.selectLanguage(event.target.value)}>{languages.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label></section>
+      <LockSettings open={open} lock={nativeLock} />
       <section><h3>{t("APPEARANCE / THEME")}</h3><div className="theme-options" role="radiogroup" aria-label={t("Theme")}>{Object.values(themes).map(option => <label className="theme-option" key={option.id} data-selected={themeSettings.theme === option.id}>
         <input type="radio" name="theme" value={option.id} checked={themeSettings.theme === option.id} disabled={themeSettings.saving} onChange={() => themeSettings.selectTheme(option.id)} />
         <span className="theme-swatch" style={{ backgroundColor: `rgb(${option.accent})` }} /><strong>{t(option.name)}</strong><small>{t(option.description)}</small>

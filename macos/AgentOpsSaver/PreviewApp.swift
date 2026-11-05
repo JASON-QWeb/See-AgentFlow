@@ -1,32 +1,31 @@
 import AppKit
 
-final class PreviewWindow: NSWindow {
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
-}
-
 final class PreviewDelegate: NSObject, NSApplicationDelegate {
-    private var windows: [NSWindow] = []
-    private var views: [AgentOpsSaverView] = []
     private var inputMonitor: Any?
     private var screenObserver: NSObjectProtocol?
     private var floating: FloatingDashboard?
     private var statusItem: NSStatusItem?
-    private var single = false
-    private var previewing = false
     private let displayMenu = NSMenu(title: "Displays")
     private let preferences = DesktopPreferences()
+    private lazy var appLock = AppLockCoordinator(preferences: preferences)
     private lazy var menuPreferences = PreferencesMenu(preferences)
     private let background = CommandLine.arguments.contains("--background")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installMenus()
-        floating = FloatingDashboard(preferences: preferences)
+        floating = FloatingDashboard(preferences: preferences, lockCoordinator: appLock)
+        appLock.onLockedChanged = { [weak self] locked in self?.floating?.setPreviewActive(locked) }
+        appLock.onNeedsPassword = { [weak self] in self?.floating?.showLockSettings() }
+        appLock.onUnlocked = { [weak self] in self?.showFloating() }
         inputMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if event.keyCode == 53, self?.previewing == true { self?.showFloating(); return nil }; return event
+            if self?.appLock.isLocked == true {
+                let blocked = event.modifierFlags.contains(.command) && ["q", "w", "m", "h", "f", "0", "1", "s"].contains(event.charactersIgnoringModifiers?.lowercased() ?? "")
+                if event.keyCode == 53 || blocked { return nil }
+            }
+            return event
         }
         screenObserver = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
-            object: nil, queue: .main) { [weak self] _ in if self?.previewing == true { self?.rebuild() } }
+            object: nil, queue: .main) { [weak self] _ in self?.updateDisplays() }
         RuntimeSetup.prepare { [weak self] error in
             guard let self else { return }
             if let error {
@@ -36,7 +35,7 @@ final class PreviewDelegate: NSObject, NSApplicationDelegate {
             }
             if self.background { return }
             if CommandLine.arguments.contains("--preview") || CommandLine.arguments.contains("--single") {
-                self.single = CommandLine.arguments.contains("--single"); self.startPreview()
+                self.appLock.enter(original: CommandLine.arguments.contains("--single"))
             } else { self.showFloating() }
             NSApp.activate(ignoringOtherApps: true)
         }
@@ -45,8 +44,8 @@ final class PreviewDelegate: NSObject, NSApplicationDelegate {
     private func actions() -> NSMenu {
         let menu = NSMenu()
         for (title, action, key) in [("Show Floating Dashboard", #selector(showFloating), "0"),
-                                     ("Preview Linked Displays", #selector(previewAll), "1"),
-                                     ("Preview Single Display", #selector(previewSingle), "s")] {
+                                     ("Lock All Displays", #selector(previewAll), "1"),
+                                     ("Lock Original Layout", #selector(previewSingle), "s")] {
             let item = menu.addItem(withTitle: title, action: action, keyEquivalent: key); item.target = self
         }
         menu.addItem(.separator())
@@ -54,6 +53,8 @@ final class PreviewDelegate: NSObject, NSApplicationDelegate {
         onTop.target = self; onTop.identifier = NSUserInterfaceItemIdentifier("alwaysOnTop")
         onTop.state = preferences.alwaysOnTop ? .on : .off
         menu.addItem(.separator())
+        let password = menu.addItem(withTitle: "Password Settings…", action: #selector(openPasswordSettings), keyEquivalent: "")
+        password.target = self
         let settings = menu.addItem(withTitle: "Screen Saver Settings…", action: #selector(openSettings), keyEquivalent: "")
         settings.target = self
         menu.addItem(.separator())
@@ -75,56 +76,45 @@ final class PreviewDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem?.button?.image = NSImage(systemSymbolName: "point.3.connected.trianglepath.dotted", accessibilityDescription: "Agent Ops")
         statusItem?.menu = actions()
+        updateDisplays()
         menuPreferences.attach(menu)
         if let statusMenu = statusItem?.menu { menuPreferences.attach(statusMenu) }
     }
 
-    private func clearPreview() {
-        views.forEach { $0.stopAnimation() }; views.removeAll()
-        windows.forEach { $0.contentView = nil; $0.close() }; windows.removeAll()
+    private func updateDisplays() {
         displayMenu.removeAllItems()
-    }
-
-    private func rebuild() {
-        clearPreview()
-        let screens = single ? Array(NSScreen.screens.prefix(1)) : NSScreen.screens
-        for screen in screens {
-            let frame = screen.frame
-            let window = PreviewWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
-            window.setFrame(frame, display: true)
-            window.title = "Agent Ops · \(screen.localizedName) · Esc to Desktop"
-            window.backgroundColor = .black; window.isReleasedWhenClosed = false
-            if let view = AgentOpsSaverView(frame: NSRect(origin: .zero, size: frame.size), isPreview: false) {
-                view.forceSingleDisplay = single
-                window.contentView = view; views.append(view)
-                window.makeKeyAndOrderFront(nil); view.startAnimation()
-            }
-            windows.append(window)
-            let item = displayMenu.addItem(withTitle: screen.localizedName, action: #selector(focusDisplay(_:)), keyEquivalent: String(windows.count + 1))
-            item.tag = windows.count - 1; item.target = self
+        for (index, screen) in NSScreen.screens.enumerated() {
+            let item = displayMenu.addItem(withTitle: screen.localizedName, action: #selector(focusDisplay(_:)), keyEquivalent: String(index + 2))
+            item.tag = index; item.target = self
         }
     }
-
-    private func startPreview() { previewing = true; floating?.setPreviewActive(true); rebuild() }
-    @objc private func previewAll() { single = false; startPreview() }
-    @objc private func previewSingle() { single = true; startPreview() }
-    @objc private func showFloating() { previewing = false; clearPreview(); floating?.setPreviewActive(false); floating?.show() }
-    @objc private func focusDisplay(_ sender: NSMenuItem) { windows[sender.tag].makeKeyAndOrderFront(nil) }
+    @objc private func previewAll() { appLock.enter() }
+    @objc private func previewSingle() { appLock.enter(original: true) }
+    @objc private func showFloating() {
+        guard !appLock.isLocked else { appLock.focusDisplay(0); return }
+        floating?.show()
+    }
+    @objc private func openPasswordSettings() { if !appLock.isLocked { floating?.showLockSettings() } }
+    @objc private func focusDisplay(_ sender: NSMenuItem) { appLock.focusDisplay(sender.tag) }
     @objc private func toggleAlwaysOnTop(_ sender: NSMenuItem) {
         floating?.setAlwaysOnTop(!preferences.alwaysOnTop)
         sender.state = preferences.alwaysOnTop ? .on : .off
     }
     @objc private func openSettings() {
+        guard !appLock.isLocked else { return }
         if let url = URL(string: "x-apple.systempreferences:com.apple.ScreenSaver-Settings.extension") { NSWorkspace.shared.open(url) }
     }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         NSApp.setActivationPolicy(.regular)
-        if !previewing || !flag { showFloating() }
+        showFloating()
         return true
+    }
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        appLock.isLocked && !appLock.systemEnding ? .terminateCancel : .terminateNow
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
     func applicationWillTerminate(_ notification: Notification) {
-        clearPreview(); floating?.dispose()
+        appLock.dispose(); floating?.dispose()
         if let inputMonitor { NSEvent.removeMonitor(inputMonitor) }
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
     }

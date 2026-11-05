@@ -5,6 +5,7 @@ import { useReplay } from './useReplay.js';
 import { usePreferences } from './usePreferences.js';
 import { LanguageContext, useTranslation } from './i18n/useTranslation.js';
 import { useDesktopLayout } from './useDesktopLayout.js';
+import { useNativeLock } from './useNativeLock.js';
 import { Scene } from './Scene.jsx';
 import { Panels } from './Panels.jsx';
 import { Console } from './Console.jsx';
@@ -14,6 +15,7 @@ import { age, bytes, count, time } from './format.js';
 export function App({ screensaver = false, displayLayout = null, desktop = false }) {
   const { compact, chromeSpace } = useDesktopLayout(desktop);
   const { data, connected, events, visual } = useTelemetry();
+  const nativeLock = useNativeLock();
   const themeSettings = usePreferences(data?.preferences);
   const { theme, language } = themeSettings;
   const t = useTranslation(language);
@@ -23,7 +25,7 @@ export function App({ screensaver = false, displayLayout = null, desktop = false
   const [immersive, setImmersive] = useState(() => screensaver || (localStorage.getItem('agent-ops-immersive') ?? String(desktop)) === 'true');
   const [quality, setQuality] = useState(() => !screensaver && localStorage.getItem('agent-ops-quality') === 'standard' ? 'standard' : 'high');
   const [consoleOpen, setConsoleOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(() => !!window.__AGENT_OPEN_LOCK_SETTINGS__);
   const [selected, setSelected] = useState(null);
   const [session, setSession] = useState(null);
   const [fullscreen, setFullscreen] = useState(false);
@@ -40,6 +42,12 @@ export function App({ screensaver = false, displayLayout = null, desktop = false
     document.addEventListener('fullscreenchange', change);
     return () => document.removeEventListener('fullscreenchange', change);
   }, []);
+  useEffect(() => {
+    const open = () => { window.__AGENT_OPEN_LOCK_SETTINGS__ = false; setSettingsOpen(true); };
+    if (window.__AGENT_OPEN_LOCK_SETTINGS__) open();
+    window.addEventListener('agent-open-lock-settings', open);
+    return () => window.removeEventListener('agent-open-lock-settings', open);
+  }, []);
   const inspect = event => { if (screensaver) return; setSelected(event); setSession(null); setConsoleOpen(true); };
   const inspectSession = session => { if (screensaver) return; setSession(session); setSelected(null); setConsoleOpen(true); };
   const openConsole = () => { if (screensaver) return; setSelected(null); setSession(null); setConsoleOpen(true); };
@@ -50,7 +58,15 @@ export function App({ screensaver = false, displayLayout = null, desktop = false
   const mode = paused ? t("VISUAL PAUSED") : immersive ? t("IMMERSIVE / DISPLAY") : !connected ? t("CONNECTING") : active ? t("TRAFFIC ACTIVE") : t("IDLE / COASTING");
   const toggleImmersive = () => { if (!immersive) setPaused(false); setImmersive(!immersive); };
   const toggleQuality = () => { if (quality !== 'high') setEco(false); setQuality(quality === 'high' ? 'standard' : 'high'); };
-  const toggleFullscreen = async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen(); } catch { /* Embedded browsers may disable fullscreen. */ } };
+  const toggleFullscreen = async () => {
+    if (nativeLock.available) {
+      const result = await nativeLock.fullscreen();
+      if (result?.needsPassword) setSettingsOpen(true);
+      return;
+    }
+    try { if (document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen(); }
+    catch { /* Embedded browsers may disable fullscreen. */ }
+  };
   return <LanguageContext.Provider value={language}><main className="dashboard" data-screensaver={screensaver || undefined} data-desktop={desktop || undefined} data-compact={compact || undefined} data-panorama={displayLayout?.count > 1 || undefined} style={displayLayout?.count > 1 ? {
     width: displayLayout.worldWidth, height: displayLayout.worldHeight,
     gridTemplateRows: displayLayout.worldWidth >= 1700 ? 'minmax(0, 1fr) 205px 30px' :
@@ -74,7 +90,7 @@ export function App({ screensaver = false, displayLayout = null, desktop = false
     {!compact && <Panels events={visibleEvents} data={data} selected={selected} onInspect={inspect} onConsole={openConsole} onSession={inspectSession} theme={theme} />}
     <footer className="statusbar"><div><span className="status-light" />{connected ? t("OBSERVER ONLINE") : t("CONNECTING TO OBSERVER")}<span className="separator">/</span><span>CODEX {data?.sources.filter(source => source.provider === 'codex').reduce((n, source) => n + source.files, 0) || 0}</span><span>CLAUDE {data?.sources.find(source => source.provider === 'claude')?.files || 0}</span></div><div className="performance-readout"><span>{t("COLLECTOR CPU")} {data?.resource.cpu.toFixed(2) || '0.00'}%</span><span>{t("MEM")} {bytes(data?.resource.rss)}</span><span>{visual.current.fps} FPS</span>{screensaver ? <span>4K</span> : <button onClick={() => setEco(!eco)} className={eco ? 'mint' : ''}>{eco ? t("ECO ON") : t("ADAPTIVE")}</button>}<span>{time(data?.now)} {t("LOCAL")}</span></div></footer>
     {!screensaver && consoleOpen && <Console open onClose={() => setConsoleOpen(false)} events={events} data={data} initialEvent={selected} initialSession={session} />}
-    {!screensaver && settingsOpen && <Settings open onClose={() => setSettingsOpen(false)} data={data} eco={eco} setEco={setEco} paused={paused} setPaused={setPaused} visual={visual} themeSettings={themeSettings} />}
+    {!screensaver && settingsOpen && <Settings open onClose={() => setSettingsOpen(false)} data={data} eco={eco} setEco={setEco} paused={paused} setPaused={setPaused} visual={visual} themeSettings={themeSettings} nativeLock={nativeLock} />}
   </main></LanguageContext.Provider>;
 }
 

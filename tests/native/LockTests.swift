@@ -1,0 +1,114 @@
+import Foundation
+import AppKit
+
+private func check(_ condition: Bool, _ message: String) {
+    if !condition { fatalError(message) }
+}
+
+@main
+struct LockTests {
+    static func main() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("agent-lock-tests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try passwords(directory)
+        lifecycle(); recovery(); throttling(); try coordinator(directory)
+        print("PASS: native password storage, lifecycle ordering, recovery gesture, throttling and all-display window release")
+    }
+    static func passwords(_ directory: URL) throws {
+        let file = directory.appendingPathComponent("verifier.json")
+        let store = try LockPasswordStore(file: file)
+        check(!store.isConfigured, "A clean install must not silently create a password")
+        do { try store.setPassword(current: "", new: "short"); fatalError("Short password accepted") }
+        catch LockPasswordError.length {}
+        let first = "temporary-test-\(UUID().uuidString)", second = "next-test-\(UUID().uuidString)"
+        try store.setPassword(current: "", new: first)
+        check(try store.verify(first), "Correct password rejected")
+        check(try !store.verify(second), "Wrong password accepted")
+        let bytes = try Data(contentsOf: file)
+        check(!String(decoding: bytes, as: UTF8.self).contains(first), "Plaintext password persisted")
+        let permissions = try FileManager.default.attributesOfItem(atPath: file.path)[.posixPermissions] as! NSNumber
+        check(permissions.intValue & 0o777 == 0o600, "Verifier file is not owner-only")
+        let reopened = try LockPasswordStore(file: file)
+        check(try reopened.verify(first), "Password did not survive reopening")
+        do { try reopened.setPassword(current: second, new: second); fatalError("Changed without old password") }
+        catch LockPasswordError.current {}
+        try reopened.setPassword(current: first, new: second)
+        check(try reopened.verify(second), "New password not active")
+        check(try !reopened.verify(first), "Old password still active")
+        let original = try JSONSerialization.jsonObject(with: bytes) as! [String: Any]
+        var changed = try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as! [String: Any]
+        check(original["salt"] as? String != changed["salt"] as? String, "Salt reused")
+        changed["iterations"] = 0
+        try JSONSerialization.data(withJSONObject: changed).write(to: file)
+        do { _ = try LockPasswordStore(file: file); fatalError("Corrupt verifier accepted") }
+        catch LockPasswordError.storage {}
+    }
+    static func lifecycle() {
+        for unlockBeforeStop in [false, true] {
+            var state = LockState()
+            state.saverStarted(arm: true); state.systemLock(true)
+            check(state.locked && !state.shouldPresent, "App must yield to system authentication")
+            if unlockBeforeStop { state.systemLock(false); state.saverStopped() }
+            else { state.saverStopped(); check(!state.shouldPresent, "Presented before system unlock"); state.systemLock(false) }
+            check(state.shouldPresent, "Screen saver did not return to app lock")
+            let attempt = state.generation
+            state.sleep(true); check(!state.shouldPresent && state.generation != attempt, "Sleep kept stale verification")
+            state.sleep(false); check(state.shouldPresent, "Wake lost lock")
+            state.unlock(); check(!state.locked && !state.shouldPresent, "Unlock did not release all-screen state")
+        }
+        var disabled = LockState(); disabled.saverStarted(arm: false); disabled.saverStopped()
+        check(!disabled.locked, "Unconfigured or disabled auto-lock should remain inactive")
+        disabled.begin(); let generation = disabled.generation
+        disabled.saverStarted(arm: true)
+        check(disabled.generation != generation, "Old authentication can release a new screen-saver lock")
+    }
+    static func recovery() {
+        var state = LockState(); state.begin()
+        for tap in 0..<9 { check(!state.borderTap(now: 10 + Double(tap) * 0.2), "Recovery opened before ten taps") }
+        check(state.borderTap(now: 11.8), "Tenth border tap did not recover")
+        state.unlock(); check(!state.borderTap(now: 12), "Recovery ran while already unlocked")
+        state.begin()
+        for tap in 0..<9 { check(!state.borderTap(now: 20 + Double(tap) * 0.2), "Early recovery") }
+        check(!state.borderTap(now: 30), "Old sequence survived a pause")
+    }
+    static func throttling() {
+        var state = LockState(); state.begin()
+        for _ in 0..<5 { state.failed(now: 100) }
+        check(!state.canAttempt(now: 101), "Unlimited repeated guesses")
+        check(state.canAttempt(now: 106), "Retry cooldown never ended")
+    }
+    static func coordinator(_ directory: URL) throws {
+        let app = NSApplication.shared; app.setActivationPolicy(.prohibited)
+        let presentation = app.presentationOptions
+        let name = "agent-lock-coordinator-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let preferences = DesktopPreferences(defaults: defaults, file: directory.appendingPathComponent("none.json"))
+        check(preferences.lockAfterSaver, "Auto-lock must default to enabled")
+        let vault = try LockPasswordStore(file: directory.appendingPathComponent("controller.json"))
+        let coordinator = AppLockCoordinator(preferences: preferences, vault: vault, presentsWindows: false)
+        defer { coordinator.dispose() }
+        check(!coordinator.enter(), "Locking without a configured password")
+        let password = "controller-test-\(UUID().uuidString)"
+        try vault.setPassword(current: "", new: password)
+        let configured = AppLockCoordinator(preferences: preferences, vault: vault, presentsWindows: false)
+        defer { configured.dispose() }
+        check(configured.enter(), "Configured fullscreen refused")
+        check(configured.coveredFrames == NSScreen.screens.map(\.frame), "Not all physical displays covered")
+        check(app.presentationOptions == presentation, "Background tests changed presentation options")
+        configured.submitPassword("wrong-password")
+        RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+        check(configured.isLocked, "Wrong password exited fullscreen")
+        configured.submitPassword(password)
+        let deadline = Date().addingTimeInterval(3)
+        while configured.isLocked && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.01)) }
+        check(!configured.isLocked && configured.coveredFrames.isEmpty, "Correct password did not release every window")
+        configured.enter(original: true)
+        for _ in 0..<9 { configured.registerBorderTap() }
+        check(configured.isLocked, "Recovery released early")
+        configured.registerBorderTap()
+        check(!configured.isLocked && configured.coveredFrames.isEmpty, "Border recovery failed to release every window")
+        check(app.presentationOptions == presentation, "Recovery modified desktop state")
+    }
+}

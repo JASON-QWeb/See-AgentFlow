@@ -289,3 +289,9 @@ dialog::backdrop { background: #030908c9; backdrop-filter: blur(4px); }
 .dashboard[data-desktop] { min-height: 0; }
 .dashboard[data-desktop] .top-controls { right: calc(24px + var(--window-controls-space, 88px)); }
 .dashboard[data-desktop][data-compact] { height: 100dvh; grid-template-rows: minmax(0, 1fr) 28px; overflow: hidden; }
+
+.lock-password-setting { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
+.lock-password-setting strong { font-size: 12px; font-weight: 500; }
+.lock-password-setting .console-button { flex-shrink: 0; font-size: 11px; }
+.lock-settings .theme-hint { margin: 8px 0; line-height: 1.6; }
+.lock-settings button:disabled { opacity: .45; cursor: default; }

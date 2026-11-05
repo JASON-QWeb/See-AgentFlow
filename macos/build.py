@@ -12,7 +12,7 @@ SOURCE = ROOT / 'macos' / 'AgentOpsSaver'
 OUTPUT = ROOT / 'artifacts' / 'macos'
 APP = OUTPUT / 'Agent Ops Screen Saver.app'
 EXTENSION = APP / 'Contents' / 'PlugIns' / 'AgentOpsSaver.appex'
-VERSION = '1.1.3'
+VERSION = '1.2.0'
 
 
 def write_plist(path, value):
@@ -26,7 +26,7 @@ def bundle_info(name, identifier, executable, kind):
         'CFBundleName': name, 'CFBundleDisplayName': name,
         'CFBundleIdentifier': identifier, 'CFBundleExecutable': executable,
         'CFBundlePackageType': kind, 'CFBundleInfoDictionaryVersion': '6.0',
-        'CFBundleShortVersionString': VERSION, 'CFBundleVersion': '5',
+        'CFBundleShortVersionString': VERSION, 'CFBundleVersion': '6',
         'LSMinimumSystemVersion': '26.0', 'NSHighResolutionCapable': True,
         'NSAppTransportSecurity': {'NSAllowsLocalNetworking': True},
     }
@@ -36,7 +36,7 @@ def compile_binary(files, destination, bridge=False):
     destination.parent.mkdir(parents=True, exist_ok=True)
     command = ['xcrun', 'swiftc', '-O', '-swift-version', '5', '-module-name', 'AgentOpsNative',
                '-target', 'arm64-apple-macos26.0', '-framework', 'AppKit', '-framework', 'ScreenSaver',
-               '-framework', 'WebKit', '-parse-as-library']
+               '-framework', 'WebKit', '-framework', 'Security', '-parse-as-library']
     if bridge:
         command += ['-import-objc-header', str(SOURCE / 'ScreenSaverBridge.h')]
     command += [str(SOURCE / name) for name in files]
@@ -48,7 +48,9 @@ def main():
     if APP.exists():
         shutil.rmtree(APP)
     shared = ['DisplayLayout.swift', 'SaverWebView.swift', 'AgentOpsSaverView.swift']
-    compile_binary(shared + ['DesktopPreferences.swift', 'FloatingChrome.swift', 'FloatingDashboard.swift', 'RuntimeSetup.swift', 'PreviewApp.swift'], APP / 'Contents/MacOS/AgentOpsPreview')
+    compile_binary(shared + ['DesktopPreferences.swift', 'FloatingChrome.swift', 'FloatingDashboard.swift',
+                   'LockPasswordStore.swift', 'LockState.swift', 'LockPromptView.swift', 'PasswordSettingsSheet.swift',
+                   'AppLockCoordinator.swift', 'RuntimeSetup.swift', 'PreviewApp.swift'], APP / 'Contents/MacOS/AgentOpsPreview')
     compile_binary(shared + ['Extension.swift'], EXTENSION / 'Contents/MacOS/AgentOpsSaver', True)
     app_info = bundle_info('Agent Ops Screen Saver', 'local.agentops.saver', 'AgentOpsPreview', 'APPL')
     app_info.update({'NSPrincipalClass': 'NSApplication', 'LSUIElement': False})
