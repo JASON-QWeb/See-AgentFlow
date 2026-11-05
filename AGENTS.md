@@ -28,3 +28,8 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 - Keep visible test windows on the secondary 27B30H display; run builds and other verification in the background. Avoid activating or covering the user's primary display while they work.
 - Include a checked-by-default Always on Top option in the menu-bar icon's context menu. Remember the choice; turning it off places the floating dashboard at the normal window level without affecting full-screen previews or the screen saver.
 - Distribute a DMG with a self-contained App and bundled observer runtime. First launch configures user-level background services; login starts the menu bar quietly, with the floating window opened on demand. Leave screen-saver selection, password authentication and display sleep under macOS control.
+
+## Documentation preferences
+
+- The repository is public and the README is product-facing. Do not mention the password or fullscreen-lock feature in `README.md`, and keep it out of README images.
+- README images must come from fictional sample logs run through the real collector, with `HOME` pointed at a scratch directory. Never capture real transcripts, session names or local paths for anything published.

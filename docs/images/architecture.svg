@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 500" width="1200" height="500" role="img" aria-label="本地日志经只读采集器与本机 SSE 推送到浏览器、悬浮窗和屏保">
+  <defs>
+    <linearGradient id="flow" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#8bf4d8" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#8bf4d8" stop-opacity=".95"/>
+    </linearGradient>
+    <marker id="head" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L8 4L0 8Z" fill="#8bf4d8"/>
+    </marker>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#6fa99e" stroke-opacity=".07"/>
+    </pattern>
+    <style>
+      text { font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans Mono CJK SC', monospace; }
+      .eyebrow { font-size: 12px; letter-spacing: 2px; fill: #78988b; }
+      .title { font-size: 19px; font-weight: 600; fill: #e4f2ee; }
+      .row { font-size: 14px; fill: #c3dbcb; }
+      .sub { font-size: 12.5px; fill: #78988b; }
+      .tag { font-size: 11px; letter-spacing: 1px; fill: #8bf4d8; }
+      .wire { font-size: 12.5px; fill: #9fc9ba; text-anchor: middle; }
+      .box { fill: #101d20; stroke: #355249; }
+      .cell { fill: #0a1416; stroke: #29413e; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="500" fill="#0b1114"/>
+  <rect width="1200" height="500" fill="url(#grid)"/>
+
+  <!-- Sources -->
+  <g>
+    <rect class="box" x="36" y="54" width="334" height="306"/>
+    <text class="eyebrow" x="58" y="86">01 / 本地日志</text>
+    <text class="title" x="58" y="116">Agent 照常写日志</text>
+    <rect class="cell" x="58" y="136" width="290" height="50"/>
+    <text class="tag" x="72" y="158">CODEX</text><text class="row" x="72" y="177">~/.codex/sessions</text>
+    <rect class="cell" x="58" y="194" width="290" height="50"/>
+    <text class="tag" x="72" y="216">CODEX</text><text class="row" x="72" y="235">~/.codex/archived_sessions</text>
+    <rect class="cell" x="58" y="252" width="290" height="50"/>
+    <text class="tag" x="72" y="274">CLAUDE</text><text class="row" x="72" y="293">~/.claude/projects</text>
+    <text class="sub" x="58" y="334">含子代理，新日志自动发现</text>
+  </g>
+
+  <!-- Wire 1 -->
+  <path d="M372 207H462" stroke="url(#flow)" stroke-width="2" fill="none" marker-end="url(#head)"/>
+  <text class="wire" x="416" y="190">只读</text>
+  <text class="wire" x="416" y="228">文件通知</text>
+  <text class="wire" x="416" y="246">30s 校准</text>
+
+  <!-- Observer -->
+  <g>
+    <rect class="box" x="466" y="54" width="268" height="306" stroke="#6aab96"/>
+    <text class="eyebrow" x="488" y="86">02 / 采集器</text>
+    <text class="title" x="488" y="116">独立 Node 进程</text>
+    <text class="row" x="488" y="154">nice +10，低优先级 I/O</text>
+    <text class="row" x="488" y="186">通知合并 120 ms</text>
+    <text class="row" x="488" y="218">每轮每文件读 128 KiB</text>
+    <text class="row" x="488" y="250">预览上限 600 条 / 10 分钟</text>
+    <text class="row" x="488" y="282">不复制日志，不建数据库</text>
+    <text class="sub" x="488" y="334">完整内容按需回读原文件</text>
+  </g>
+
+  <!-- Wire 2 -->
+  <path d="M736 207H826" stroke="url(#flow)" stroke-width="2" fill="none" marker-end="url(#head)"/>
+  <text class="wire" x="780" y="190">SSE 1 Hz</text>
+  <text class="wire" x="780" y="228">127.0.0.1</text>
+  <text class="wire" x="780" y="246">:4318</text>
+
+  <!-- Displays -->
+  <g>
+    <rect class="box" x="830" y="54" width="334" height="306"/>
+    <text class="eyebrow" x="852" y="86">03 / 显示</text>
+    <text class="title" x="852" y="116">同一份数据，三种形态</text>
+    <rect class="cell" x="852" y="136" width="290" height="50"/>
+    <text class="tag" x="866" y="158">BROWSER</text><text class="row" x="866" y="177">任意现代浏览器</text>
+    <rect class="cell" x="852" y="194" width="290" height="50"/>
+    <text class="tag" x="866" y="216">FLOATING</text><text class="row" x="866" y="235">原生悬浮窗 + 菜单栏</text>
+    <rect class="cell" x="852" y="252" width="290" height="50"/>
+    <text class="tag" x="866" y="274">SCREEN SAVER</text><text class="row" x="866" y="293">单屏原版 / 双屏联动</text>
+    <text class="sub" x="852" y="334">主题、语言跨窗口同步</text>
+  </g>
+
+  <!-- Boundary -->
+  <rect x="36" y="388" width="1128" height="72" fill="#0a1416" stroke="#29413e"/>
+  <rect x="36" y="388" width="3" height="72" fill="#8bf4d8"/>
+  <text class="eyebrow" x="58" y="417">边界</text>
+  <text class="row" x="58" y="443">不读认证配置 · 不改 Codex / Claude 配置 · 不装 hooks · 不改代理与模型请求链路 · 服务只绑定本机</text>
+</svg>

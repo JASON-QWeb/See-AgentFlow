@@ -181,3 +181,38 @@ The computer tool reported the Mac locked and automatic unlock paused due to phy
 - The actual WallpaperAgent preview on secondary 27B30H stayed visibly animated for over 30 seconds. After the fix its logs report no occluded windows or `hideContentUntilPendingUpdate` events during that interval (`artifacts/screensaver-visibility-fix.log`). The user then manually triggered the real saver at 17:01:18 and confirmed both displays flowed normally. Both pages loaded by 17:01:19.520 and the renderers released at 17:01:30.632–.651, with no missing-module reset or layer-hiding events (`artifacts/screensaver-1.1.1-user-validation.log`). This validates actual screen-saver activation/rendering/exit, not a separate audit of password authentication.
 - Following that test, the user requested a passive screen saver. `/screensaver` now omits the top-right toolbar, replaces the footer ECO button with a noninteractive HQ label, and prevents inspection/settings overlays. The existing screen-saver defaults already enable immersive history replay and high quality regardless of desktop localStorage settings. Original single-screen layout and linked geometry remain unchanged; desktop controls remain available.
 - Hidden-browser validation at 1920×1080 CSS / DPR 2 confirmed zero configuration controls, immersive/history labels, a 3840×1666 scene canvas and 60 FPS in both single-screen and linked right-screen views. The normal desktop route still renders all five toolbar buttons and its ECO control. No checked browser errors or warnings occurred. Evidence: `artifacts/screensaver-clean-single.png` and `artifacts/screensaver-clean-dual-right.png`. Temporary tabs and the viewport override were removed. Updated the installed and live web assets without restarting the observer or screen-saver host; the new UI loads on the next activation.
+
+## 2026-11-05 performance and polish pass
+
+Headless Chrome for Testing with Metal on Apple M4, 1920×1080 CSS at DPR 2 (3840×1666 canvas), fictional logs appended at about 8 events/s. Old and new bundles alternated for three 20 s rounds on an otherwise idle machine; an earlier round taken during other activity was discarded as noisy. Percentages are of one core.
+
+| Scenario | Metric | Before | After |
+|---|---|---|---|
+| Single, live traffic | Main-thread task time | 5.35% | 4.18% |
+| | Script | 3.16% | 2.26% |
+| | Layout | 0.334% | 0.100% |
+| | Sampled GC | 0.233% | 0.09% |
+| | Renderer + GPU process CPU | 20.5% | 20.0% |
+| Linked, one display | Main-thread task time | 3.82% | 3.23% |
+| | Script | 1.03% | 0.79% |
+| | Layout | 0.612% | 0.113% |
+| | Renderer + GPU process CPU | 18.5% | 19.0% |
+
+Main-thread work improved. Total renderer + GPU CPU did not change beyond run-to-run noise, because rasterization and compositing dominate it and were not altered.
+
+Collector, measured twice per version with fictional records:
+
+| Case | Before | After |
+|---|---|---|
+| 600 cached records of 256 KiB: retained heap | 154.9 MiB | 5.3 MiB |
+| Same case: RSS | about 254 MiB | about 66 MiB |
+| 20 000 records appended at once: CPU time | about 1790 ms | about 350 ms |
+| Same case: time to drain | about 3.97 s | about 2.55 s |
+
+Changes: previews are copied so a V8 slice cannot pin its parent record; sample ageing moved to the sweep timer; line splitting uses `Buffer.indexOf`. The throughput bar animates `transform` instead of `width`, which removes per-frame layout. `DispatchScene` repaints the backdrop only when session topology changes, reuses atlas storage and colour strings, and repaints after the bundled font loads. `MobiusRenderer` caches GL locations per program.
+
+UI fixes that keep the existing composition: Silver Stream no longer inherits mint from the base stylesheet; linked panels use equal columns so a matched seam falls in the centre gap (previously a 10 px sliver of the second panel crossed onto the right display); port labels hide when the session rail would cover them in small windows; code previews align to the top; blocks sharing a record no longer report `0 B`; the session panel follows the source filter; browser Settings omit the desktop-only section; a favicon removes a 404 on every load.
+
+An EventSource rejected at the five-connection limit now retries. With the old bundle the page stayed on RECONNECTING until reloaded; with the new bundle it recovered without a reload once a slot freed.
+
+Verified in Chromium: filters, hide-and-restore of canvas and WebGL resources, runtime theme switching with no GL errors, both documented linked URLs and the seam geometry. Native sources compiled without warnings, but this pass did not launch the App or screen saver, so WKWebView behaviour and numbers were not measured.
