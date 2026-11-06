@@ -9,6 +9,7 @@ from bundle_runtime import bundle_runtime
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SOURCE = ROOT / 'macos' / 'AgentOpsSaver'
+ASSETS = ROOT / 'macos' / 'assets'
 OUTPUT = ROOT / 'artifacts' / 'macos'
 APP = OUTPUT / 'Agent Ops Screen Saver.app'
 EXTENSION = APP / 'Contents' / 'PlugIns' / 'AgentOpsSaver.appex'
@@ -26,7 +27,7 @@ def bundle_info(name, identifier, executable, kind):
         'CFBundleName': name, 'CFBundleDisplayName': name,
         'CFBundleIdentifier': identifier, 'CFBundleExecutable': executable,
         'CFBundlePackageType': kind, 'CFBundleInfoDictionaryVersion': '6.0',
-        'CFBundleShortVersionString': VERSION, 'CFBundleVersion': '6',
+        'CFBundleShortVersionString': VERSION, 'CFBundleVersion': '7',
         'LSMinimumSystemVersion': '26.0', 'NSHighResolutionCapable': True,
         'NSAppTransportSecurity': {'NSAllowsLocalNetworking': True},
     }
@@ -53,8 +54,11 @@ def main():
                    'AppLockCoordinator.swift', 'RuntimeSetup.swift', 'PreviewApp.swift'], APP / 'Contents/MacOS/AgentOpsPreview')
     compile_binary(shared + ['Extension.swift'], EXTENSION / 'Contents/MacOS/AgentOpsSaver', True)
     app_info = bundle_info('Agent Ops Screen Saver', 'local.agentops.saver', 'AgentOpsPreview', 'APPL')
-    app_info.update({'NSPrincipalClass': 'NSApplication', 'LSUIElement': False})
+    app_info.update({'NSPrincipalClass': 'NSApplication', 'LSUIElement': False, 'CFBundleIconFile': 'AppIcon'})
     write_plist(APP / 'Contents/Info.plist', app_info)
+    (APP / 'Contents/Resources').mkdir(parents=True, exist_ok=True)
+    for name in ['AppIcon.icns', 'MenuBarIconTemplate.png', 'MenuBarIconTemplate@2x.png']:
+        shutil.copy2(ASSETS / name, APP / 'Contents/Resources' / name)
     extension_info = bundle_info('Agent Ops · Continuous Link', 'local.agentops.saver.extension', 'AgentOpsSaver', 'XPC!')
     extension_info.update({
         'NSExtension': {'NSExtensionPointIdentifier': 'com.apple.screensaver',

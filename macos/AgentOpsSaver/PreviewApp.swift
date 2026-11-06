@@ -74,7 +74,10 @@ final class PreviewDelegate: NSObject, NSApplicationDelegate {
         let screenItem = NSMenuItem(title: "Displays", action: nil, keyEquivalent: "")
         screenItem.submenu = displayMenu; menu.addItem(screenItem); NSApp.mainMenu = menu
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem?.button?.image = NSImage(systemSymbolName: "point.3.connected.trianglepath.dotted", accessibilityDescription: "Agent Ops")
+        let statusImage = NSImage(named: "MenuBarIconTemplate")
+            ?? NSImage(systemSymbolName: "point.3.connected.trianglepath.dotted", accessibilityDescription: "Agent Ops")
+        statusImage?.accessibilityDescription = "Agent Ops"
+        statusItem?.button?.image = statusImage
         statusItem?.menu = actions()
         updateDisplays()
         menuPreferences.attach(menu)

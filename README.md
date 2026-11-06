@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="macos/assets/AppIcon.svg" alt="See-AgentFlow 图标：黑底上一条白色的八字莫比乌斯环" width="120">
+
 # See-AgentFlow
 
 **看见你的 AI Agent 正在做什么。**
