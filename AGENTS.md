@@ -36,5 +36,5 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 
 ## Documentation preferences
 
-- The repository is public and the README is product-facing. Do not mention the password or fullscreen-lock feature in `README.md`, and keep it out of README images.
+- The repository is public and the README is a short product showcase led by the app icon. Technical detail belongs in `docs/TECHNICAL.md`. Do not mention the password or fullscreen-lock feature in either file, and keep it out of README images.
 - README images must come from fictional sample logs run through the real collector, with `HOME` pointed at a scratch directory. Never capture real transcripts, session names or local paths for anything published.
