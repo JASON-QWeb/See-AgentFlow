@@ -43,12 +43,16 @@ def main():
         subprocess.run(['hdiutil', 'create', '-ov', '-size', f'{image_mib}m', '-format', 'UDZO', '-volname', 'See-AgentFlow',
                         '-srcfolder', str(stage), str(destination)], check=True)
     subprocess.run(['hdiutil', 'verify', str(destination)], check=True)
-    digest = hashlib.file_digest(destination.open('rb'), 'sha256').hexdigest()
-    destination.with_suffix('.dmg.sha256').write_text(f'{digest}  {destination.name}\n')
+    digest = hashlib.sha256()
+    with destination.open('rb') as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+            digest.update(chunk)
+    destination.with_suffix('.dmg.sha256').write_text(f'{digest.hexdigest()}  {destination.name}\n')
     # Keep the verified image, not a second launchable development App in Spotlight.
     registry = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister'
     subprocess.run(['pluginkit', '-r', str(APP / 'Contents/PlugIns/AgentOpsSaver.appex')], capture_output=True)
-    subprocess.run([registry, '-u', str(APP)], check=True, capture_output=True)
+    # A copy Spotlight has not indexed yet has nothing to unregister, and lsregister reports that as an error.
+    subprocess.run([registry, '-u', str(APP)], capture_output=True)
     shutil.rmtree(APP)
     print(destination)
 
