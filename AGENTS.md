@@ -34,6 +34,11 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 - The app icon is black and white: a white figure-eight Möbius ribbon on a dark squircle, built from the renderer's own centreline and half-twist. The sources and exports live in `macos/assets/`, the menu bar uses the template PNGs, and the favicon in `index.html` stays the same mark.
 - Keep `AppIcon.icns` starting at 64 px. macOS 26 wraps the 16 and 32 px representations of a plain `.icns` in a gray frame, while omitting them makes the system scale the 64 px one cleanly. Check changes through `NSWorkspace.icon(forFile:)` at 16 and 32 px, since larger sizes do not show this.
 
+## CI and releases
+
+- `.github/workflows/ci.yml` runs on every push. CI must generate fictional logs with `scripts/ci-fixtures.mjs`, because the collector tests otherwise skip and still pass.
+- To release, set `VERSION` in `macos/build.py`, add `docs/release-notes/v<version>.md`, merge to `main` and push the tag. The release publishes the DMG that CI verified.
+
 ## Documentation preferences
 
 - The repository is public and the README is a short product showcase led by the app icon. Technical detail belongs in `docs/TECHNICAL.md`. Do not mention the password or fullscreen-lock feature in either file, and keep it out of README images.

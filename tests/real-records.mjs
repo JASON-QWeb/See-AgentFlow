@@ -3,8 +3,8 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { normalize } from '../server/normalize.mjs';
 
-// Tests replay existing local records only, in isolated temporary directories.
-// No transcripts, credentials, or invented production data are stored in the repository.
+// Tests replay local records in isolated temporary directories: real logs on a developer's machine,
+// or fictional ones from scripts/ci-fixtures.mjs in CI. No transcripts or credentials are stored in the repository.
 export async function realRecords(provider) {
   const root = provider === 'codex' ? join(process.env.CODEX_HOME || join(homedir(), '.codex'), 'sessions')
     : join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude'), 'projects');
@@ -31,6 +31,7 @@ export async function realRecords(provider) {
     } finally { await handle.close(); }
     if (records.some(item => item.items[0].kind === 'input') && records.some(item => item.items[0].kind === 'tool_call')) break;
   }
+  if (!records.length && process.env.AGENT_VIEW_REQUIRE_RECORDS) throw new Error(`No ${provider} records found; these tests would silently skip`);
   return records;
 }
 

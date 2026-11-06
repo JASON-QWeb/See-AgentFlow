@@ -13,7 +13,8 @@ struct PreferencesTests {
         let file = directory.appendingPathComponent("preferences.json")
         let preferences = DesktopPreferences(defaults: defaults, file: file)
         precondition(preferences.alwaysOnTop && preferences.language == "en")
-        let floating = FloatingDashboard(preferences: preferences)
+        let coordinator = AppLockCoordinator(preferences: preferences, vault: nil, presentsWindows: false)
+        let floating = FloatingDashboard(preferences: preferences, lockCoordinator: coordinator)
         defer { floating.dispose() }
         precondition(!floating.window.isVisible && floating.window.level == .floating)
         let menu = NSMenu(), item = NSMenuItem(title: "Always on Top", action: nil, keyEquivalent: "")

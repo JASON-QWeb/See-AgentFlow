@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/') }}
+
+env:
+  # The Node.js build that ships inside the App.
+  BUNDLED_NODE: 26.13.0
+
+jobs:
+  checks:
+    name: Docs and dependencies
+    # Branches in this repository already run on push, so only forks need the pull_request run.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+      - run: npm run test:docs
+      - run: npm audit --audit-level=high
+
+  test:
+    name: Tests (Node ${{ matrix.node }})
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: macos-26
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '26']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      # Runners have no real session logs. Without these, the collector tests would skip and still pass.
+      - name: Generate fictional session logs
+        run: node scripts/ci-fixtures.mjs "$RUNNER_TEMP/logs" >> "$GITHUB_ENV"
+      - run: npm test
+      - run: npm run build
+      - run: npm run test:sites
+      - run: npm run test:installer
+
+  native:
+    name: Native tests
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+      - run: npm run test:native
+      - run: npm run test:native-lock
+
+  package:
+    name: Build and verify DMG
+    needs: [checks, test, native]
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+          cache: npm
+      - run: npm ci
+      - name: Fetch the official Node.js build
+        run: scripts/fetch-official-node.sh "$BUNDLED_NODE" "$RUNNER_TEMP/node" >> "$GITHUB_ENV"
+      - run: npm run build:dmg
+      - run: scripts/verify-dmg.sh artifacts/macos/See-AgentFlow-*.dmg
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dmg
+          path: |
+            artifacts/macos/*.dmg
+            artifacts/macos/*.sha256
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error
