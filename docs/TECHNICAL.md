@@ -4,27 +4,32 @@
 
 ## 安装 macOS App
 
-**Apple Silicon，macOS 26+**
+需要 Apple Silicon 和 macOS 26 或更高版本。App 内含悬浮窗、屏保扩展和独立的 Node 运行环境，不需要另装 Node。
 
-App 内含悬浮窗、屏保扩展和独立的 Node 运行环境，安装后不需要另装 Node。目前需要从源码构建（需要 Xcode 命令行工具）：
+1. 从 [Releases](https://github.com/JASON-QWeb/See-AgentFlow/releases/latest) 下载 DMG，把 App 拖入 `Applications`，弹出磁盘映像。
+2. 版本使用 ad-hoc 签名，尚未经过 Apple 公证，macOS 会阻止直接打开。在终端运行一次：
+
+   ```bash
+   xattr -dr com.apple.quarantine "/Applications/Agent Ops Screen Saver.app"
+   ```
+
+3. 打开 App 一次，首次启动会自动配置用户级后台服务。之后登录时只静默启动菜单栏，看板随时用 `⌘0` 打开。
+4. 在 **系统设置 → 墙纸 / 屏幕保护程序** 中选择 **Agent Ops · Continuous Link**，并设置空闲启动时间。
+
+安装包不包含构建机器上的日志和设置。
+
+卸载时在仓库目录运行 `python3 macos/uninstall.py`：后台服务会停止，已安装文件移入废纸篓；主题、语言偏好和原始会话日志都会保留。
+
+### 从源码打包
+
+需要 Xcode 命令行工具和 macOS 26 SDK。打包时会把 Node 一起放进安装包，所以必须使用 nodejs.org 的官方版本，Homebrew 版依赖外部动态库，脚本会拒绝使用。下面的脚本会下载官方版本并校验校验和与签名：
 
 ```bash
 npm install
-AGENT_FLOW_NODE=/path/to/node-darwin-arm64/bin/node npm run build:dmg
+export "$(scripts/fetch-official-node.sh 26.13.0 /tmp/agent-flow-node)"
+npm run build:dmg
+scripts/verify-dmg.sh artifacts/macos/See-AgentFlow-1.2.0-arm64.dmg
 ```
-
-打包时会把 Node 一起放进安装包，所以 `AGENT_FLOW_NODE` 要指向 [nodejs.org](https://nodejs.org/) 的官方 macOS arm64 版本。Homebrew 版依赖外部动态库，打包脚本会拒绝使用。
-
-产物位于 `artifacts/macos/See-AgentFlow-1.2.0-arm64.dmg`。
-
-1. 把 App 拖入 `Applications`，弹出磁盘映像后打开一次。首次启动会自动配置用户级后台服务。
-2. 在 **系统设置 → 墙纸 / 屏幕保护程序** 中选择 **Agent Ops · Continuous Link**，并设置空闲启动时间。
-3. 之后登录时只会静默启动菜单栏，看板随时用 `⌘0` 打开。
-
-> [!NOTE]
-> 本地构建使用 ad-hoc 签名，尚未经过 Apple 公证。把安装包拷到另一台 Mac 时，可能需要在 **系统设置 → 隐私与安全性** 中手动允许打开。安装包不包含构建机器上的日志和设置。
-
-卸载时运行 `python3 macos/uninstall.py`：后台服务会停止，已安装文件移入废纸篓；主题、语言偏好和原始会话日志都会保留。
 
 ## 预览双屏联动
 
@@ -121,9 +126,11 @@ npm run dev            # Vite 与采集器一起启动
 npm test               # 采集、回放、保留策略、布局、偏好和语言表
 npm run test:sites     # 静态前端托管
 npm run test:installer # macOS 安装事务
+npm run test:native    # 原生布局与偏好（不显示窗口）
+npm run test:docs      # 文档链接与公开内容
 ```
 
-测试会把本机已有的日志回放到临时目录中运行，结束后删除副本，不修改真实日志，也不会把会话内容提交进仓库。本机没有日志时，相应用例会明确跳过。
+测试会把本机已有的日志回放到临时目录中运行，结束后删除副本，不修改真实日志，也不会把会话内容提交进仓库。本机没有日志时，相应用例会明确跳过；CI 上则用 `scripts/ci-fixtures.mjs` 生成虚构日志，缺少日志时直接失败，不会静默跳过。
 
 ```text
 server/            只读采集、HTTP 与 SSE
@@ -135,3 +142,13 @@ macos/             原生 App、屏保扩展与打包脚本
 tests/             基于本地日志回放的测试
 worker/            静态前端的托管入口（本机采集仍需运行 Node 服务）
 ```
+
+## CI 与发布
+
+每次推送都会运行 [CI](../.github/workflows/ci.yml)：文档与依赖审计，Node 22 和 26 上的全部测试，原生测试，以及完整打包并核对 DMG。
+
+发布新版本：
+
+1. 修改 `macos/build.py` 里的 `VERSION`，并添加 `docs/release-notes/v<版本号>.md`。
+2. 合入 `main`，确认 CI 通过。
+3. 推送标签 `v<版本号>`。[Release 工作流](../.github/workflows/release.yml) 会检查标签，重新运行 CI，然后把通过验证的 DMG 发布出去。

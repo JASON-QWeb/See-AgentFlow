@@ -9,6 +9,11 @@
 本机 Codex 与 Claude Code 的实时调度中心。只读、纯本地、不碰模型请求，<br>
 可以悬浮在桌面，也可以铺满两台显示器。
 
+[![CI](https://github.com/JASON-QWeb/See-AgentFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/JASON-QWeb/See-AgentFlow/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/JASON-QWeb/See-AgentFlow)](https://github.com/JASON-QWeb/See-AgentFlow/releases/latest)
+
+**[下载 macOS 版](https://github.com/JASON-QWeb/See-AgentFlow/releases/latest)**
+
 <img src="docs/images/hero-linked-displays.jpg" alt="两台显示器共同显示一条跨屏的八字莫比乌斯日志环，流线向两侧分发" width="100%">
 
 </div>
@@ -45,7 +50,9 @@ Mint Terminal、Silver Stream、White Signal。界面支持 English、简体中�
 
 ## 开始使用
 
-需要 Node.js 22 或更高版本：
+**macOS App**（Apple Silicon，macOS 26+）：从 [Releases](https://github.com/JASON-QWeb/See-AgentFlow/releases/latest) 下载 DMG，按发布说明安装，不需要另装 Node。
+
+**浏览器**（Node.js 22+）：
 
 ```bash
 npm install
@@ -53,7 +60,7 @@ npm run build
 npm start
 ```
 
-然后打开 <http://127.0.0.1:4318>。悬浮窗和屏保需要 macOS App，安装方式见[技术细节](docs/TECHNICAL.md#安装-macos-app)。
+然后打开 <http://127.0.0.1:4318>。更多内容见[技术细节](docs/TECHNICAL.md)。
 
 ## 只读，且只在本机
 
