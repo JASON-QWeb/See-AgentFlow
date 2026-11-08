@@ -14,6 +14,8 @@ final class LockPromptView: NSView, NSTextFieldDelegate {
     private let preferences: DesktopPreferences
     var onSubmit: ((String) -> Void)?
     var onTitleTap: (() -> Void)?
+    var onDismiss: (() -> Void)?
+    var onPasswordEdit: (() -> Void)?
 
     init(frame: NSRect, preferences: DesktopPreferences) {
         self.preferences = preferences
@@ -30,12 +32,18 @@ final class LockPromptView: NSView, NSTextFieldDelegate {
             card.heightAnchor.constraint(equalToConstant: 268)])
         let title = label(preferences.text("AGENT OPS / LOCKED"), size: 18, color: .white)
         let hint = label(preferences.text("Enter password to return to desktop."), size: 12, color: .lightGray)
-        let titleArea = LockTitle(frame: NSRect(x: 28, y: 212, width: min(324, ceil(title.fittingSize.width)), height: 26))
+        let titleArea = LockTitle(frame: NSRect(x: 28, y: 212, width: min(284, ceil(title.fittingSize.width)), height: 26))
         title.frame = titleArea.bounds
         titleArea.tapped = { [weak self] in self?.onTitleTap?() }
         titleArea.addSubview(title)
         hint.frame = NSRect(x: 28, y: 178, width: 324, height: 25)
         card.addSubview(titleArea); card.addSubview(hint)
+        let closeLabel = preferences.text("Hide password prompt")
+        let close = NSButton(title: "×", target: self, action: #selector(dismiss))
+        close.isBordered = false; close.font = .systemFont(ofSize: 20, weight: .regular)
+        close.frame = NSRect(x: 326, y: 211, width: 32, height: 28)
+        close.toolTip = closeLabel; close.setAccessibilityLabel(closeLabel)
+        card.addSubview(close)
         let border = NSView(frame: NSRect(x: 28, y: 110, width: 324, height: 54))
         border.wantsLayer = true; border.layer?.borderWidth = 1.5
         border.layer?.borderColor = NSColor(calibratedWhite: 0.85, alpha: 0.9).cgColor
@@ -70,7 +78,12 @@ final class LockPromptView: NSView, NSTextFieldDelegate {
     override func hitTest(_ point: NSPoint) -> NSView? { super.hitTest(point) ?? self }
     override func mouseDown(with event: NSEvent) { focus() }
     override func resetCursorRects() { addCursorRect(bounds, cursor: .arrow) }
-    func focus() { window?.makeFirstResponder(password) }
+    func focus() { if password.isEnabled, !isHidden { window?.makeFirstResponder(password) } }
+    func hideAndClear() {
+        if password.currentEditor() != nil { window?.makeFirstResponder(window) }
+        password.stringValue = ""; message.stringValue = ""
+        isHidden = true
+    }
     func setBusy(_ busy: Bool, error: String = "") {
         submit.isEnabled = !busy; password.isEnabled = !busy
         message.stringValue = preferences.text(error)
@@ -80,11 +93,13 @@ final class LockPromptView: NSView, NSTextFieldDelegate {
         guard submit.isEnabled else { return }
         let value = password.stringValue; password.stringValue = ""; onSubmit?(value)
     }
+    @objc private func dismiss() { onDismiss?() }
     func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
         if selector == #selector(NSResponder.cancelOperation(_:)) { return true }
         return false
     }
     func controlTextDidChange(_ obj: Notification) {
         if password.stringValue.count > 128 { password.stringValue = String(password.stringValue.prefix(128)) }
+        onPasswordEdit?()
     }
 }

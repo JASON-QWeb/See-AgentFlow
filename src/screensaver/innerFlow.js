@@ -31,6 +31,7 @@ uniform vec4 u_view;
 uniform vec2 u_world;
 uniform float u_phase;
 uniform float u_packets;
+uniform float u_intensity;
 uniform vec3 u_accent;
 uniform vec3 u_ink;
 out vec4 v_color;
@@ -64,7 +65,7 @@ void main() {
     t=head>.5 ? progress+(a_sample.x-.5)*.013*direction : progress-.13*direction*(1.0-a_sample.x);
     t=clamp(t,0.0,1.0);
     width=head>.5 ? 3.6 : 1.7+a_sample.x*.8;
-    opacity=(head>.5 ? .98 : .12+.78*a_sample.x)*min(1.0,min(phase*14.0,(1.0-phase)*14.0));
+    opacity=(head>.5 ? .98 : .12+.78*a_sample.x)*min(1.0,min(phase*14.0,(1.0-phase)*14.0))*u_intensity;
     ink=mix(u_accent,u_ink,head>.5 ? .7 : .2);
   }
   vec2 p=point(t);

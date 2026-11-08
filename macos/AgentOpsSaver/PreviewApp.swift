@@ -1,7 +1,10 @@
 import AppKit
+import Carbon
 
 final class PreviewDelegate: NSObject, NSApplicationDelegate {
     private var inputMonitor: Any?
+    private var lockHotKey: EventHotKeyRef?
+    private var lockHotKeyHandler: EventHandlerRef?
     private var screenObserver: NSObjectProtocol?
     private var floating: FloatingDashboard?
     private var statusItem: NSStatusItem?
@@ -18,11 +21,12 @@ final class PreviewDelegate: NSObject, NSApplicationDelegate {
         appLock.onNeedsPassword = { [weak self] in self?.floating?.showLockSettings() }
         inputMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if self?.appLock.isLocked == true {
-                let blocked = event.modifierFlags.contains(.command) && ["q", "w", "m", "h", "f", "0", "1", "s"].contains(event.charactersIgnoringModifiers?.lowercased() ?? "")
+                let blocked = event.modifierFlags.contains(.command) && ["q", "w", "m", "h", "f", "0", "l", "s"].contains(event.charactersIgnoringModifiers?.lowercased() ?? "")
                 if event.keyCode == 53 || blocked { return nil }
             }
             return event
         }
+        registerLockHotKey()
         screenObserver = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
             object: nil, queue: .main) { [weak self] _ in self?.updateDisplays() }
         RuntimeSetup.prepare { [weak self] error in
@@ -43,7 +47,7 @@ final class PreviewDelegate: NSObject, NSApplicationDelegate {
     private func actions() -> NSMenu {
         let menu = NSMenu()
         for (title, action, key) in [("Show Floating Dashboard", #selector(showFloating), "0"),
-                                     ("Lock All Displays", #selector(previewAll), "1"),
+                                     ("Lock All Displays", #selector(previewAll), "l"),
                                      ("Lock Original Layout", #selector(previewSingle), "s")] {
             let item = menu.addItem(withTitle: title, action: action, keyEquivalent: key); item.target = self
         }
@@ -59,6 +63,31 @@ final class PreviewDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Agent Ops", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         return menu
+    }
+
+    private static let lockHotKeyID = EventHotKeyID(signature: 0x41474F50, id: 1)
+
+    private func registerLockHotKey() {
+        let target = GetApplicationEventTarget()
+        var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyReleased))
+        let handlerStatus = InstallEventHandler(target, { _, event, context in
+            guard let event, let context else { return OSStatus(eventNotHandledErr) }
+            var hotKeyID = EventHotKeyID()
+            let result = GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
+                                           nil, MemoryLayout<EventHotKeyID>.size, nil, &hotKeyID)
+            guard result == noErr, hotKeyID.signature == PreviewDelegate.lockHotKeyID.signature,
+                  hotKeyID.id == PreviewDelegate.lockHotKeyID.id else { return OSStatus(eventNotHandledErr) }
+            let owner = Unmanaged<PreviewDelegate>.fromOpaque(context).takeUnretainedValue()
+            if !owner.appLock.isLocked, !owner.appLock.enter() { NSApp.activate(ignoringOtherApps: true) }
+            return noErr
+        }, 1, &eventType, Unmanaged.passUnretained(self).toOpaque(), &lockHotKeyHandler)
+        guard handlerStatus == noErr else { NSLog("Agent Ops could not install its global lock shortcut handler: %d", handlerStatus); return }
+        let result = RegisterEventHotKey(UInt32(kVK_ANSI_L), UInt32(cmdKey), Self.lockHotKeyID, target,
+                                         OptionBits(kEventHotKeyExclusive), &lockHotKey)
+        if result != noErr {
+            if let lockHotKeyHandler { RemoveEventHandler(lockHotKeyHandler); self.lockHotKeyHandler = nil }
+            NSLog("Agent Ops could not register its global Command-L shortcut: %d", result)
+        }
     }
 
     private func installMenus() {
@@ -116,6 +145,8 @@ final class PreviewDelegate: NSObject, NSApplicationDelegate {
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
     func applicationWillTerminate(_ notification: Notification) {
+        if let lockHotKey { UnregisterEventHotKey(lockHotKey) }
+        if let lockHotKeyHandler { RemoveEventHandler(lockHotKeyHandler) }
         appLock.dispose(); floating?.dispose()
         if let inputMonitor { NSEvent.removeMonitor(inputMonitor) }
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }

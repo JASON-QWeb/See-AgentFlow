@@ -26,6 +26,7 @@ struct LockState {
     mutating func sleep(_ value: Bool) { sleeping = value; if value { invalidateAttempt() } }
     private mutating func invalidateAttempt() { generation += 1; titleTaps = 0 }
     func canAttempt(now: TimeInterval) -> Bool { locked && now >= retryAfter }
+    mutating func resetTitleTaps() { titleTaps = 0 }
     mutating func failed(now: TimeInterval) {
         failures += 1
         if failures % 5 == 0 { retryAfter = now + min(30, Double(failures)) }

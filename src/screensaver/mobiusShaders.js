@@ -69,6 +69,7 @@ in vec3 a_tail;
 uniform vec4 u_view;
 uniform vec2 u_world;
 uniform float u_phase;
+uniform float u_intensity;
 uniform vec3 u_accent;
 uniform vec3 u_ink;
 out vec4 v_color;
@@ -98,7 +99,7 @@ void main() {
   vec2 clip=(point-u_view.xy)/u_view.zw*2.0-1.0;
   gl_Position=vec4(clip.x,-clip.y,.9,1.0);
   float alpha=(.16+a_tail.x*.70)*min(1.0,min(phase*15.0,(1.0-phase)*15.0));
-  v_color=vec4(a_tail.y>.5 ? u_ink : u_accent,alpha);
+  v_color=vec4(a_tail.y>.5 ? u_ink : u_accent,alpha*u_intensity);
 }`;
 
 export function program(gl, vertexSource, fragmentSource) {

@@ -44,6 +44,7 @@ final class DesktopPreferences {
         "Current password is incorrect.": ["当前密码不正确。", "目前密碼不正確。"],
         "Password storage is unavailable.": ["密码存储不可用。", "密碼儲存無法使用。"],
         "Enter password to return to desktop.": ["输入密码返回桌面。", "輸入密碼返回桌面。"],
+        "Hide password prompt": ["隐藏密码框", "隱藏密碼框"],
         "Incorrect password.": ["密码不正确。", "密碼不正確。"],
         "Too many attempts. Try again shortly.": ["尝试次数过多，请稍后再试。", "嘗試次數過多，請稍後再試。"],
         "Show Floating Dashboard": ["显示悬浮看板", "顯示浮動看板"],

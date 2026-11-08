@@ -2,6 +2,7 @@ import { bandPath, bezier, hash, rim, traceRim } from './geometry.js';
 import { themeFor } from '../themes.js';
 import { translate } from '../i18n/catalog.js';
 import { HIDDEN_RELEASE_DELAY } from '../eventRetention.js';
+import { immersiveMotion } from './immersiveMotion.js';
 
 const encoder = new TextEncoder();
 // Fade steps of 2.5% are invisible on a sub-2px trail and let up to 760 strokes per frame reuse their colour strings.
@@ -222,7 +223,7 @@ export class DispatchScene {
     if (this.particles.length > 760) this.particles.splice(0, this.particles.length - 760);
   }
 
-  updateImmersive(state, dt, reduced) {
+  updateImmersive(state, dt, speed, reduced) {
     if (!state.immersive) {
       if (this.wasImmersive) this.particles = this.particles.filter(particle => !particle.ambient);
       this.wasImmersive = false;
@@ -232,7 +233,7 @@ export class DispatchScene {
     if (state.paused || reduced) return;
     const prime = !this.wasImmersive;
     this.wasImmersive = true;
-    this.ambientBudget += prime ? 220 : dt * (state.eco ? 72 : 112);
+    this.ambientBudget += prime ? 220 : dt * (state.eco ? 72 : 112) * speed * (.35 + .65 * speed);
     const count = Math.min(Math.floor(this.ambientBudget), 760 - this.particles.length);
     this.ambientBudget -= Math.floor(this.ambientBudget);
     for (let i = 0; i < count; i++) {
@@ -331,11 +332,13 @@ export class DispatchScene {
     const arrival = state.queue.splice(0);
     if (!state.paused) this.spawn(arrival);
     const reduced = this.motionPreference.matches;
-    this.updateImmersive(state, dt, reduced);
+    const speed = state.immersive ? immersiveMotion(Date.now()).speed : 1;
+    const motionDt = state.paused || reduced ? 0 : dt * speed;
+    this.updateImmersive(state, dt, speed, reduced);
     const rate = state.provider === 'all' ? state.data?.rate : state.data?.providerRates?.[state.provider];
     const target = Math.max(state.immersive ? .7 : 0, Math.min(1, (rate || 0) / 8));
     this.energy += (target - this.energy) * (1 - Math.exp(-dt / (target > this.energy ? .7 : 4)));
-    if (!state.paused && !reduced) this.phase += dt * (1.8 + this.energy * 32);
+    this.phase += motionDt * (1.8 + this.energy * 32);
     const atlasKey = `${state.immersive}:${state.replayRevision}:${state.immersive ? Math.floor(this.phase / 1800) : state.events.at(-1)?.id}`;
     if (this.lastEvent !== atlasKey && (!this.lastEvent || state.replayRevision !== this.replayRevision || now - this.atlasTime > 2500)) {
       this.lastEvent = atlasKey; this.replayRevision = state.replayRevision; this.atlasTime = now;
@@ -352,7 +355,7 @@ export class DispatchScene {
     ctx.drawImage(this.backdrop, 0, 0);
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     this.paintBand(ctx);
-    this.paintParticles(ctx, state.paused || reduced ? 0 : dt);
+    this.paintParticles(ctx, motionDt);
     state.frameMs = performance.now() - started;
     this.frames++;
     if (now - this.fpsTime >= 1000) { state.fps = Math.round(this.frames * 1000 / (now - this.fpsTime)); this.frames = 0; this.fpsTime = now; }

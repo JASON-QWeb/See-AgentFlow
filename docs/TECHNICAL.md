@@ -28,7 +28,7 @@
 npm install
 export "$(scripts/fetch-official-node.sh 26.13.0 /tmp/agent-flow-node)"
 npm run build:dmg
-scripts/verify-dmg.sh artifacts/macos/See-AgentFlow-1.2.0-arm64.dmg
+scripts/verify-dmg.sh artifacts/macos/See-AgentFlow-1.3.0-arm64.dmg
 ```
 
 ## 预览双屏联动

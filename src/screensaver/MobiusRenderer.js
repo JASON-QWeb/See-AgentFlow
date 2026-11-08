@@ -4,6 +4,7 @@ import { themeFor, rgb, hexRGB } from '../themes.js';
 import { innerMeshes, innerVertex, INNER_PACKETS, OUTER_PACKETS } from './innerFlow.js';
 import { translate } from '../i18n/catalog.js';
 import { HIDDEN_RELEASE_DELAY } from '../eventRetention.js';
+import { immersiveMotion } from '../scene/immersiveMotion.js';
 
 export class MobiusRenderer {
   constructor(canvas, telemetry, layout) {
@@ -140,13 +141,14 @@ export class MobiusRenderer {
     gl.drawArrays(gl.TRIANGLES, 0, count);
   }
 
-  drawPackets(now) {
+  drawPackets(now, intensity) {
     const state = this.telemetry.current;
     const count = state.immersive ? OUTER_PACKETS : Math.floor(Math.min(OUTER_PACKETS, 100 + (state.data?.rate || 0) * 40));
     const gl = this.gl; gl.useProgram(this.packetProgram); gl.bindBuffer(gl.ARRAY_BUFFER, this.packetBuffer);
     gl.uniform4fv(this.uniform(this.packetProgram, 'u_view'), this.view);
     gl.uniform2f(this.uniform(this.packetProgram, 'u_world'), this.layout.worldWidth, this.layout.sceneHeight);
     gl.uniform1f(this.uniform(this.packetProgram, 'u_phase'), (now % 120000) / 120000);
+    gl.uniform1f(this.uniform(this.packetProgram, 'u_intensity'), intensity);
     for (const [name, size, offset] of [['a_packet', 4, 0], ['a_tail', 3, 16]]) {
       const location = this.attribute(this.packetProgram, name);
       gl.enableVertexAttribArray(location); gl.vertexAttribPointer(location, size, gl.FLOAT, false, 28, offset);
@@ -155,7 +157,7 @@ export class MobiusRenderer {
     gl.drawArrays(gl.TRIANGLES, 0, count * 18);
   }
 
-  drawInner(now, packets) {
+  drawInner(now, packets, intensity) {
     const gl = this.gl, shader = this.innerProgram, state = this.telemetry.current;
     const count = state.immersive ? INNER_PACKETS : Math.min(INNER_PACKETS, Math.floor((state.data?.rate || 0) * 20));
     gl.useProgram(shader); gl.bindBuffer(gl.ARRAY_BUFFER, packets ? this.innerPackets : this.innerRoutes);
@@ -163,6 +165,7 @@ export class MobiusRenderer {
     gl.uniform2f(this.uniform(shader, 'u_world'), this.layout.worldWidth, this.layout.sceneHeight);
     gl.uniform1f(this.uniform(shader, 'u_phase'), (now % 120000) / 120000);
     gl.uniform1f(this.uniform(shader, 'u_packets'), Number(packets));
+    gl.uniform1f(this.uniform(shader, 'u_intensity'), intensity);
     for (const [name, size, offset] of [['a_path', 4, 0], ['a_sample', 3, 16]]) {
       const location = this.attribute(shader, name);
       gl.enableVertexAttribArray(location); gl.vertexAttribPointer(location, size, gl.FLOAT, false, 28, offset);
@@ -171,12 +174,12 @@ export class MobiusRenderer {
     gl.drawArrays(gl.TRIANGLES, 0, packets ? count * 24 : this.innerRouteCount);
   }
 
-  draw(now) {
+  draw(now, intensity) {
     const gl = this.gl;
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); gl.disable(gl.DEPTH_TEST);
-    this.drawLines(this.routes, this.routeCount); this.drawPackets(now);
-    this.drawInner(now, false); this.drawInner(now, true);
+    this.drawLines(this.routes, this.routeCount); this.drawPackets(now, intensity);
+    this.drawInner(now, false, intensity); this.drawInner(now, true, intensity);
     gl.enable(gl.DEPTH_TEST); gl.useProgram(this.ring); gl.bindBuffer(gl.ARRAY_BUFFER, this.mesh);
     const uv = this.attribute(this.ring, 'a_uv');
     gl.enableVertexAttribArray(uv); gl.vertexAttribPointer(uv, 2, gl.FLOAT, false, 0, 0);
@@ -199,8 +202,10 @@ export class MobiusRenderer {
     this.nextFrame = Math.max(this.nextFrame ?? timestamp, timestamp - interval) + interval;
     const started = performance.now(), now = Date.now();
     state.queue.length = 0;
-    if (!state.paused && !this.reduced.matches) this.visualTime = now;
-    this.updateTheme(); this.updateAtlas(this.visualTime || now); this.draw(this.visualTime || 0);
+    if (this.visualTime == null || (!state.paused && !this.reduced.matches)) this.visualTime = now;
+    const motion = state.immersive ? immersiveMotion(this.visualTime) : { time: this.visualTime, speed: 1 };
+    const intensity = state.immersive ? Math.min(1, .42 + .4 * motion.speed) : 1;
+    this.updateTheme(); this.updateAtlas(motion.time); this.draw(motion.time, intensity);
     state.frameMs = performance.now() - started;
     this.frameCount++;
     if (timestamp - this.sampleAt > 1000) {

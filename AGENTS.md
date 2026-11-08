@@ -10,7 +10,10 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 
 ## Display preferences
 
+- The native lock password prompt has a close button and hides after two minutes without password input. Hiding clears partial input and keeps every screen covered. Return or a click on any covered screen restores the prompt and focuses password entry.
+- The native desktop app reserves Command-L globally while running to lock all displays. Command-S stays app-local and uses the original layout.
 - User-authorized immersive mode keeps visual particles and the core moving without requests. Generate these effects only in the renderer; keep captured events, logs and counters tied to real local data and label the display mode.
+- In immersive mode, vary motion speed continuously with overlapping slow passages and shorter bursts. Keep linked screens in sync and leave live telemetry rates tied to real events.
 - In immersive mode, fill the central waterfall from past local logs and loop them as labeled history replay. Keep replay reads bounded and cached independently of live ingestion.
 - For long-running displays, expire old preview data gradually with time and count limits, replace history replay windows instead of appending, and release hidden/unmounted renderer resources. Keep original transcript files and lifetime capture counters independent of display-cache eviction.
 - Optimize high-quality mode for the user's 4K / 60 Hz display: native-pixel text, up to 60 FPS and a bounded 4K canvas budget. Preserve ECO, pause, reduced-motion and hidden-window controls. Label the high-quality control `4K`, without the `/ HQ` suffix.

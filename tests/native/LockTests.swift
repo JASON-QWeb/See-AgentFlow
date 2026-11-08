@@ -13,7 +13,7 @@ struct LockTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         try passwords(directory)
         lifecycle(); recovery(); throttling(); try coordinator(directory)
-        print("PASS: native password storage, lifecycle ordering, recovery gesture, throttling and all-display window release")
+        print("PASS: native password storage, lifecycle, prompt hiding and wake, recovery, throttling and window release")
     }
     static func passwords(_ directory: URL) throws {
         let file = directory.appendingPathComponent("verifier.json")
@@ -123,5 +123,39 @@ struct LockTests {
         click(NSPoint(x: 250, y: 390))
         check(!configured.isLocked && configured.coveredFrames.isEmpty, "Title recovery failed to release every window")
         check(app.presentationOptions == presentation, "Recovery modified desktop state")
+        try promptVisibility(preferences, vault)
+    }
+    static func promptVisibility(_ preferences: DesktopPreferences, _ vault: LockPasswordStore) throws {
+        guard !NSScreen.screens.isEmpty else { return }
+        let coordinator = AppLockCoordinator(preferences: preferences, vault: vault, presentsWindows: false, promptTimeout: 0.3)
+        defer { coordinator.dispose() }
+        check(coordinator.enter(), "Could not prepare prompt test")
+        let windows = NSApp.windows.compactMap { $0 as? LockedWindow }.filter { $0.contentView != nil }
+        let prompts = windows.compactMap { $0.contentView?.subviews.compactMap { $0 as? LockPromptView }.first }
+        check(prompts.count == NSScreen.screens.count, "Missing password prompt")
+        let window = windows[0], prompt = prompts[0]
+        let card = prompt.subviews[0]
+        let close = card.subviews.compactMap { $0 as? NSButton }.first { $0.title == "×" }!
+        let field = card.subviews.flatMap(\.subviews).compactMap { $0 as? NSSecureTextField }.first!
+        field.stringValue = "partial"
+        close.performClick(nil)
+        check(prompts.allSatisfy(\.isHidden) && field.stringValue.isEmpty, "Close did not hide all prompts and clear input")
+        check(coordinator.isLocked && coordinator.coveredFrames.count == windows.count, "Closing the prompt exposed the desktop")
+        let click = NSEvent.mouseEvent(with: .leftMouseDown, location: .zero, modifierFlags: [], timestamp: 0,
+            windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
+        window.sendEvent(click)
+        check(prompts.allSatisfy { !$0.isHidden }, "Click did not restore all prompts")
+        RunLoop.current.run(until: Date().addingTimeInterval(0.18))
+        field.stringValue = "partial again"
+        prompt.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification, object: field))
+        RunLoop.current.run(until: Date().addingTimeInterval(0.17))
+        check(!prompt.isHidden, "Password edit did not restart the timer")
+        RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+        check(prompts.allSatisfy(\.isHidden) && field.stringValue.isEmpty && coordinator.isLocked, "Idle prompt did not clear and hide")
+        let enter = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+            windowNumber: window.windowNumber, context: nil, characters: "\r", charactersIgnoringModifiers: "\r",
+            isARepeat: false, keyCode: 36)!
+        window.sendEvent(enter)
+        check(prompts.allSatisfy { !$0.isHidden }, "Return did not restore all prompts")
     }
 }

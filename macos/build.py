@@ -13,7 +13,7 @@ ASSETS = ROOT / 'macos' / 'assets'
 OUTPUT = ROOT / 'artifacts' / 'macos'
 APP = OUTPUT / 'Agent Ops Screen Saver.app'
 EXTENSION = APP / 'Contents' / 'PlugIns' / 'AgentOpsSaver.appex'
-VERSION = '1.2.0'
+VERSION = '1.3.0'
 
 
 def write_plist(path, value):
@@ -27,7 +27,7 @@ def bundle_info(name, identifier, executable, kind):
         'CFBundleName': name, 'CFBundleDisplayName': name,
         'CFBundleIdentifier': identifier, 'CFBundleExecutable': executable,
         'CFBundlePackageType': kind, 'CFBundleInfoDictionaryVersion': '6.0',
-        'CFBundleShortVersionString': VERSION, 'CFBundleVersion': '7',
+        'CFBundleShortVersionString': VERSION, 'CFBundleVersion': '8',
         'LSMinimumSystemVersion': '26.0', 'NSHighResolutionCapable': True,
         'NSAppTransportSecurity': {'NSAllowsLocalNetworking': True},
     }
@@ -37,7 +37,7 @@ def compile_binary(files, destination, bridge=False):
     destination.parent.mkdir(parents=True, exist_ok=True)
     command = ['xcrun', 'swiftc', '-O', '-swift-version', '5', '-module-name', 'AgentOpsNative',
                '-target', 'arm64-apple-macos26.0', '-framework', 'AppKit', '-framework', 'ScreenSaver',
-               '-framework', 'WebKit', '-framework', 'Security', '-parse-as-library']
+               '-framework', 'WebKit', '-framework', 'Security', '-framework', 'Carbon', '-parse-as-library']
     if bridge:
         command += ['-import-objc-header', str(SOURCE / 'ScreenSaverBridge.h')]
     command += [str(SOURCE / name) for name in files]

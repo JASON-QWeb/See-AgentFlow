@@ -2,20 +2,36 @@ import AppKit
 import WebKit
 
 final class LockedWindow: NSWindow {
+    var onPromptWake: (() -> Bool)?
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
+
+    override func sendEvent(_ event: NSEvent) {
+        switch event.type {
+        case .leftMouseDown, .rightMouseDown, .otherMouseDown:
+            if onPromptWake?() == true { return }
+        case .keyDown where event.charactersIgnoringModifiers == "\r" || event.charactersIgnoringModifiers == "\u{3}":
+            if !event.isARepeat, onPromptWake?() == true { return }
+        default:
+            break
+        }
+        super.sendEvent(event)
+    }
 }
 
 final class AppLockCoordinator: NSObject, NSWindowDelegate {
     private let preferences: DesktopPreferences
     private let vault: LockPasswordStore?
     private let presentsWindows: Bool
+    private let promptTimeout: TimeInterval
     private let cryptoQueue = DispatchQueue(label: "local.agentops.password", qos: .userInitiated)
     private(set) var state = LockState()
     private var configured = false
     private var windows: [NSWindow] = []
     private var renderers: [SaverWebView] = []
     private var prompts: [LockPromptView] = []
+    private var promptTimer: Timer?
+    private var promptHidden = false
     private var savedPresentation: NSApplication.PresentationOptions?
     private var notifications: [(NotificationCenter, NSObjectProtocol)] = []
     private var passwordSheet: PasswordSettingsSheet?
@@ -27,9 +43,10 @@ final class AppLockCoordinator: NSObject, NSWindowDelegate {
     var isLocked: Bool { state.locked }
     var coveredFrames: [NSRect] { windows.map(\.frame) }
 
-    init(preferences: DesktopPreferences, vault: LockPasswordStore? = try? LockPasswordStore(), presentsWindows: Bool = true) {
+    init(preferences: DesktopPreferences, vault: LockPasswordStore? = try? LockPasswordStore(),
+         presentsWindows: Bool = true, promptTimeout: TimeInterval = 120) {
         self.preferences = preferences; self.vault = vault; configured = vault?.isConfigured ?? false
-        self.presentsWindows = presentsWindows
+        self.presentsWindows = presentsWindows; self.promptTimeout = promptTimeout
         super.init(); observeLifecycle()
     }
     var status: [String: Any] {
@@ -64,7 +81,8 @@ final class AppLockCoordinator: NSObject, NSWindowDelegate {
     func setAfterSaver(_ enabled: Bool) { if !state.locked { preferences.lockAfterSaver = enabled } }
     func focusDisplay(_ index: Int) {
         guard presentsWindows, windows.indices.contains(index) else { return }
-        windows[index].makeKeyAndOrderFront(nil); prompts[index].focus()
+        windows[index].makeKeyAndOrderFront(nil)
+        if !promptHidden { prompts[index].focus() }
     }
 
     private func observe(_ center: NotificationCenter, _ name: Notification.Name, _ block: @escaping (AppLockCoordinator) -> Void) {
@@ -112,22 +130,48 @@ final class AppLockCoordinator: NSObject, NSWindowDelegate {
             let container = NSView(frame: NSRect(origin: .zero, size: screen.frame.size)); window.contentView = container
             renderers.append(SaverWebView(container: container, layout: DisplayLayout.make(screen: screen, preview: originalLayout)))
             let prompt = LockPromptView(frame: container.bounds, preferences: preferences)
+            prompt.isHidden = promptHidden
             prompt.setBusy(busy)
             prompt.onSubmit = { [weak self] password in self?.submitPassword(password) }
             prompt.onTitleTap = { [weak self] in self?.registerTitleTap() }
+            prompt.onDismiss = { [weak self] in self?.hidePrompt() }
+            prompt.onPasswordEdit = { [weak self] in self?.restartPromptTimer() }
+            window.onPromptWake = { [weak self, weak window] in
+                guard let self, let window, self.promptHidden else { return false }
+                self.promptHidden = false
+                self.prompts.forEach { $0.isHidden = false }
+                if let index = self.windows.firstIndex(of: window) { self.focusDisplay(index) }
+                self.restartPromptTimer()
+                return true
+            }
             container.addSubview(prompt); prompts.append(prompt); windows.append(window)
             if presentsWindows { window.orderFrontRegardless() }
         }
         if presentsWindows {
             NSApp.activate(ignoringOtherApps: true)
-            windows.first?.makeKeyAndOrderFront(nil); prompts.first?.focus()
+            focusDisplay(0)
         }
+        restartPromptTimer()
+    }
+    private func restartPromptTimer() {
+        promptTimer?.invalidate(); promptTimer = nil
+        guard !promptHidden, state.shouldPresent else { return }
+        let timer = Timer(timeInterval: promptTimeout, repeats: false) { [weak self] _ in self?.hidePrompt() }
+        promptTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+    private func hidePrompt() {
+        promptHidden = true
+        promptTimer?.invalidate(); promptTimer = nil
+        state.resetTitleTaps()
+        prompts.forEach { $0.hideAndClear() }
     }
     func registerTitleTap() {
         if state.titleTap(now: ProcessInfo.processInfo.systemUptime) { unlock() }
     }
     func submitPassword(_ password: String) {
-        guard let vault, !busy, state.shouldPresent else { return }
+        guard let vault, !busy, !promptHidden, state.shouldPresent else { return }
+        restartPromptTimer()
         guard state.canAttempt(now: ProcessInfo.processInfo.systemUptime) else {
             prompts.forEach { $0.setBusy(false, error: "Too many attempts. Try again shortly.") }; return
         }
@@ -147,9 +191,10 @@ final class AppLockCoordinator: NSObject, NSWindowDelegate {
         }
     }
     private func unlock() {
-        state.unlock(); busy = false; releaseWindows(); onLockedChanged?(false)
+        state.unlock(); busy = false; promptHidden = false; releaseWindows(); onLockedChanged?(false)
     }
     private func releaseWindows() {
+        promptTimer?.invalidate(); promptTimer = nil
         renderers.forEach { $0.dispose() }; renderers.removeAll(); prompts.removeAll()
         windows.forEach { $0.delegate = nil; $0.contentView = nil; $0.close() }; windows.removeAll()
         if let savedPresentation { NSApp.presentationOptions = savedPresentation; self.savedPresentation = nil }
