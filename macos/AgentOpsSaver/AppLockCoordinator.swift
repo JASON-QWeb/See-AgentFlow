@@ -24,7 +24,6 @@ final class AppLockCoordinator: NSObject, NSWindowDelegate {
     private(set) var systemEnding = false
     var onLockedChanged: ((Bool) -> Void)?
     var onNeedsPassword: (() -> Void)?
-    var onUnlocked: (() -> Void)?
     var isLocked: Bool { state.locked }
     var coveredFrames: [NSRect] { windows.map(\.frame) }
 
@@ -115,7 +114,7 @@ final class AppLockCoordinator: NSObject, NSWindowDelegate {
             let prompt = LockPromptView(frame: container.bounds, preferences: preferences)
             prompt.setBusy(busy)
             prompt.onSubmit = { [weak self] password in self?.submitPassword(password) }
-            prompt.onBorderTap = { [weak self] in self?.registerBorderTap() }
+            prompt.onTitleTap = { [weak self] in self?.registerTitleTap() }
             container.addSubview(prompt); prompts.append(prompt); windows.append(window)
             if presentsWindows { window.orderFrontRegardless() }
         }
@@ -124,8 +123,8 @@ final class AppLockCoordinator: NSObject, NSWindowDelegate {
             windows.first?.makeKeyAndOrderFront(nil); prompts.first?.focus()
         }
     }
-    func registerBorderTap() {
-        if state.borderTap(now: ProcessInfo.processInfo.systemUptime) { unlock() }
+    func registerTitleTap() {
+        if state.titleTap(now: ProcessInfo.processInfo.systemUptime) { unlock() }
     }
     func submitPassword(_ password: String) {
         guard let vault, !busy, state.shouldPresent else { return }
@@ -148,7 +147,7 @@ final class AppLockCoordinator: NSObject, NSWindowDelegate {
         }
     }
     private func unlock() {
-        state.unlock(); busy = false; releaseWindows(); onLockedChanged?(false); onUnlocked?()
+        state.unlock(); busy = false; releaseWindows(); onLockedChanged?(false)
     }
     private func releaseWindows() {
         renderers.forEach { $0.dispose() }; renderers.removeAll(); prompts.removeAll()

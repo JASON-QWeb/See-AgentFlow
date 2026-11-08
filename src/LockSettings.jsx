@@ -19,7 +19,7 @@ export function LockSettings({ open, lock }) {
       <input type="checkbox" checked={lock.afterSaver} disabled={lock.busy} onChange={event => lock.setAfterSaver(event.target.checked)} />
     </label>
     <p className="theme-hint">{t('Password entry stays in the native App.')}</p>
-    <p className="theme-hint">{t('Recovery: click the password field border 10 times in succession.')}</p>
+    <p className="theme-hint">{t('Recovery: click the lock screen title 10 times in succession.')}</p>
     <p className="theme-hint" role="status">{t(lock.error || (!lock.storageAvailable ? 'Password storage is unavailable.' : 'App-level privacy cover; macOS authentication is unchanged.'))}</p>
   </section>;
 }

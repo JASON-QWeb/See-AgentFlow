@@ -65,12 +65,12 @@ struct LockTests {
     }
     static func recovery() {
         var state = LockState(); state.begin()
-        for tap in 0..<9 { check(!state.borderTap(now: 10 + Double(tap) * 0.2), "Recovery opened before ten taps") }
-        check(state.borderTap(now: 11.8), "Tenth border tap did not recover")
-        state.unlock(); check(!state.borderTap(now: 12), "Recovery ran while already unlocked")
+        for tap in 0..<9 { check(!state.titleTap(now: 10 + Double(tap) * 0.2), "Recovery opened before ten taps") }
+        check(state.titleTap(now: 11.8), "Tenth title tap did not recover")
+        state.unlock(); check(!state.titleTap(now: 12), "Recovery ran while already unlocked")
         state.begin()
-        for tap in 0..<9 { check(!state.borderTap(now: 20 + Double(tap) * 0.2), "Early recovery") }
-        check(!state.borderTap(now: 30), "Old sequence survived a pause")
+        for tap in 0..<9 { check(!state.titleTap(now: 20 + Double(tap) * 0.2), "Early recovery") }
+        check(!state.titleTap(now: 30), "Old sequence survived a pause")
     }
     static func throttling() {
         var state = LockState(); state.begin()
@@ -105,10 +105,23 @@ struct LockTests {
         while configured.isLocked && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.01)) }
         check(!configured.isLocked && configured.coveredFrames.isEmpty, "Correct password did not release every window")
         configured.enter(original: true)
-        for _ in 0..<9 { configured.registerBorderTap() }
+        let frame = NSRect(x: 0, y: 0, width: 800, height: 600)
+        let container = NSView(frame: frame)
+        let prompt = LockPromptView(frame: frame, preferences: preferences)
+        container.addSubview(prompt)
+        prompt.layoutSubtreeIfNeeded()
+        prompt.onTitleTap = { configured.registerTitleTap() }
+        func click(_ point: NSPoint) {
+            let event = NSEvent.mouseEvent(with: .leftMouseDown, location: point, modifierFlags: [],
+                timestamp: 0, windowNumber: 0, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
+            prompt.hitTest(point)?.mouseDown(with: event)
+        }
+        for _ in 0..<10 { click(NSPoint(x: 250, y: 277)) }
+        check(configured.isLocked, "Password border still triggers recovery")
+        for _ in 0..<9 { click(NSPoint(x: 250, y: 390)) }
         check(configured.isLocked, "Recovery released early")
-        configured.registerBorderTap()
-        check(!configured.isLocked && configured.coveredFrames.isEmpty, "Border recovery failed to release every window")
+        click(NSPoint(x: 250, y: 390))
+        check(!configured.isLocked && configured.coveredFrames.isEmpty, "Title recovery failed to release every window")
         check(app.presentationOptions == presentation, "Recovery modified desktop state")
     }
 }

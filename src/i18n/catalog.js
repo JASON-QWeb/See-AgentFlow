@@ -98,7 +98,7 @@ export const messages = {
   'Lock again after screen saver': ['屏保结束后进入全屏锁定', '螢幕保護程式結束後進入全螢幕鎖定'],
   'After macOS returns to desktop, require the app password on every display.': ['macOS 返回桌面后，所有屏幕均需输入应用密码解锁。', 'macOS 返回桌面後，所有螢幕均需輸入應用程式密碼解鎖。'],
   'Password entry stays in the native App.': ['密码通过原生窗口输入，不经过网页和日志服务。', '密碼透過原生視窗輸入，不經過網頁和紀錄服務。'],
-  'Recovery: click the password field border 10 times in succession.': ['备用解锁：连续点击密码输入框边框 10 次。', '備用解鎖：連續點擊密碼輸入框邊框 10 次。'],
+  'Recovery: click the lock screen title 10 times in succession.': ['备用解锁：连续点击锁定界面的标题 10 次。', '備用解鎖：連續點擊鎖定畫面的標題 10 次。'],
   'App-level privacy cover; macOS authentication is unchanged.': ['这是应用内遮挡；macOS 系统认证保持原样。', '這是應用程式內遮擋；macOS 系統驗證維持原樣。'],
   'Password settings are unavailable.': ['密码设置暂时不可用。', '密碼設定暫時無法使用。'],
   'Password storage is unavailable.': ['密码存储不可用。', '密碼儲存無法使用。'],

@@ -1,8 +1,9 @@
 import AppKit
 
-private final class PasswordBorder: NSView {
+private final class LockTitle: NSView {
     var tapped: (() -> Void)?
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override func hitTest(_ point: NSPoint) -> NSView? { super.hitTest(point) == nil ? nil : self }
     override func mouseDown(with event: NSEvent) { tapped?() }
 }
 
@@ -12,7 +13,7 @@ final class LockPromptView: NSView, NSTextFieldDelegate {
     private let submit = NSButton()
     private let preferences: DesktopPreferences
     var onSubmit: ((String) -> Void)?
-    var onBorderTap: (() -> Void)?
+    var onTitleTap: (() -> Void)?
 
     init(frame: NSRect, preferences: DesktopPreferences) {
         self.preferences = preferences
@@ -29,14 +30,16 @@ final class LockPromptView: NSView, NSTextFieldDelegate {
             card.heightAnchor.constraint(equalToConstant: 268)])
         let title = label(preferences.text("AGENT OPS / LOCKED"), size: 18, color: .white)
         let hint = label(preferences.text("Enter password to return to desktop."), size: 12, color: .lightGray)
-        title.frame = NSRect(x: 28, y: 212, width: 324, height: 26)
+        let titleArea = LockTitle(frame: NSRect(x: 28, y: 212, width: min(324, ceil(title.fittingSize.width)), height: 26))
+        title.frame = titleArea.bounds
+        titleArea.tapped = { [weak self] in self?.onTitleTap?() }
+        titleArea.addSubview(title)
         hint.frame = NSRect(x: 28, y: 178, width: 324, height: 25)
-        card.addSubview(title); card.addSubview(hint)
-        let border = PasswordBorder(frame: NSRect(x: 28, y: 110, width: 324, height: 54))
+        card.addSubview(titleArea); card.addSubview(hint)
+        let border = NSView(frame: NSRect(x: 28, y: 110, width: 324, height: 54))
         border.wantsLayer = true; border.layer?.borderWidth = 1.5
         border.layer?.borderColor = NSColor(calibratedWhite: 0.85, alpha: 0.9).cgColor
         border.setAccessibilityIdentifier("agent-lock-password-border")
-        border.tapped = { [weak self] in self?.onBorderTap?(); self?.focus() }
         password.frame = NSRect(x: 10, y: 12, width: 304, height: 28)
         password.isBordered = false; password.drawsBackground = false; password.textColor = .white
         password.font = .monospacedSystemFont(ofSize: 18, weight: .regular); password.focusRingType = .none

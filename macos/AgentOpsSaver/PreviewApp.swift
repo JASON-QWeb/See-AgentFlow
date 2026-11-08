@@ -16,7 +16,6 @@ final class PreviewDelegate: NSObject, NSApplicationDelegate {
         floating = FloatingDashboard(preferences: preferences, lockCoordinator: appLock)
         appLock.onLockedChanged = { [weak self] locked in self?.floating?.setPreviewActive(locked) }
         appLock.onNeedsPassword = { [weak self] in self?.floating?.showLockSettings() }
-        appLock.onUnlocked = { [weak self] in self?.showFloating() }
         inputMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if self?.appLock.isLocked == true {
                 let blocked = event.modifierFlags.contains(.command) && ["q", "w", "m", "h", "f", "0", "1", "s"].contains(event.charactersIgnoringModifiers?.lowercased() ?? "")
